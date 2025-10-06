@@ -358,7 +358,16 @@ function MediaUpload() {
       <h2 style={{fontSize: '1.8rem', marginBottom: '20px', color: '#333'}}>Carica Video o Foto</h2>
 
       {files.length === 0 && !analyzing && (
-        <div>
+        <div
+          onDrop={async (e) => {
+            e.preventDefault()
+            const droppedFiles = Array.from(e.dataTransfer.files).slice(0, 10)
+            if (droppedFiles.length > 0) {
+              await addFiles(droppedFiles)
+            }
+          }}
+          onDragOver={(e) => e.preventDefault()}
+        >
           <input
             type="file"
             accept="image/*,video/*"
@@ -369,16 +378,7 @@ function MediaUpload() {
             disabled={processing}
           />
           <label htmlFor="fileInput">
-            <div 
-              onDrop={async (e) => {
-                e.preventDefault()
-                const droppedFiles = Array.from(e.dataTransfer.files).slice(0, 10)
-                if (droppedFiles.length > 0) {
-                  await addFiles(droppedFiles)
-                }
-              }}
-              onDragOver={(e) => e.preventDefault()}
-              style={{
+            <div style={{
               border: '4px dashed #ccc',
               borderRadius: '15px',
               padding: '50px',
