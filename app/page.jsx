@@ -49,11 +49,13 @@ function InstagramPreview({ isOpen, onClose, variant, preview, fileName }) {
 
         {/* Immagine/Video */}
         {preview && (
-          preview.includes('video') || fileName?.includes('.mp4') ? (
-            <video src={preview} controls style={{width: '100%', maxHeight: '500px', objectFit: 'cover'}} />
-          ) : (
-            <img src={preview} alt="Preview" style={{width: '100%', maxHeight: '500px', objectFit: 'cover'}} />
-          )
+          <div style={{background: '#000', width: '100%'}}>
+            {fileName?.toLowerCase().includes('.mp4') || fileName?.toLowerCase().includes('.mov') ? (
+              <video src={preview} controls style={{width: '100%', maxHeight: '500px', objectFit: 'contain', display: 'block'}} />
+            ) : (
+              <img src={preview} alt="Preview" style={{width: '100%', maxHeight: '500px', objectFit: 'contain', display: 'block'}} />
+            )}
+          </div>
         )}
 
         {/* Caption */}
@@ -638,7 +640,7 @@ function MediaUpload() {
                           }}>
                             {variant.type}
                           </h5>
-                          <div style={{display: 'flex', gap: '10px'}}>
+                          <div style={{display: 'flex', gap: '10px', flexWrap: 'wrap'}}>
                             <button
                               onClick={() => openPreview(variant, reel.preview, reel.fileName)}
                               style={{
@@ -668,6 +670,21 @@ function MediaUpload() {
                               }}
                             >
                               Copia
+                            </button>
+                            <button
+                              onClick={() => shareToInstagram(`${variant.caption}\n\n${variant.hashtags.join(' ')}\n\n${variant.cta}`)}
+                              style={{
+                                background: 'linear-gradient(45deg, #f09433 0%,#e6683c 25%,#dc2743 50%,#cc2366 75%,#bc1888 100%)',
+                                color: 'white',
+                                border: 'none',
+                                padding: '10px 20px',
+                                borderRadius: '8px',
+                                cursor: 'pointer',
+                                fontWeight: '600',
+                                fontSize: '0.9rem'
+                              }}
+                            >
+                              📱 Instagram
                             </button>
                           </div>
                         </div>
