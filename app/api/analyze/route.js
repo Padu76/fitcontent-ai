@@ -6,12 +6,13 @@ const openai = new OpenAI({
 
 export async function POST(request) {
   try {
-    const { mediaUrl, mediaType, reelNumber, totalReels, seriesTitle } = await request.json();
+    const { mediaUrl, mediaType, reelNumber, totalReels, seriesTitle, template } = await request.json();
 
     console.log('=== ANALYZE REQUEST START ===');
     console.log('Media URL:', mediaUrl);
     console.log('Media Type:', mediaType);
     console.log('Reel Info:', { reelNumber, totalReels, seriesTitle });
+    console.log('Template:', template);
 
     if (!mediaUrl) {
       return Response.json({ error: 'URL media mancante' }, { status: 400 });
@@ -51,11 +52,35 @@ IMPORTANTE: Questa è la PARTE ${reelNumber} di ${totalReels} di una serie di re
       }
     }
 
+    // Costruisci context per template
+    let templateContext = '';
+    if (template) {
+      templateContext = `
+STILE E FORMATO (Template: "${template.name}"):
+
+TONO: ${template.tone === 'aggressive' ? 'Aggressivo, diretto, imperativo. Usa verbi forti, frasi brevi, energia alta. Es: "Basta scuse!", "Ora o mai più!"' : 
+       template.tone === 'soft' ? 'Morbido, empatico, incoraggiante. Usa un linguaggio gentile, supportivo. Es: "Prenditi il tuo tempo", "Ogni progresso conta"' :
+       'Neutro, professionale ma amichevole. Bilanciato tra motivazione e informazione.'}
+
+LUNGHEZZA CAPTION: ${template.captionLength === 'short' ? 'Corta (50-80 parole). Vai dritto al punto, niente giri di parole.' :
+                      template.captionLength === 'medium' ? 'Media (100-150 parole). Sviluppa il concetto con 2-3 punti chiave.' :
+                      'Lunga (150-200 parole). Approfondisci con dettagli, storytelling, multiple call-to-action.'}
+
+STILE HASHTAG: ${template.hashtagStyle === 'niche' ? 'Hashtag di nicchia, specifici e tecnici. Es: #powerlifting #hipthrust #trackinmacros' :
+                 template.hashtagStyle === 'popular' ? 'Hashtag popolari e generici per massima reach. Es: #fitness #motivation #workout' :
+                 'Mix bilanciato di hashtag popolari (5) e di nicchia (5) per reach + engagement.'}
+
+Applica RIGOROSAMENTE questo template a tutte e 3 le varianti (motivazionale, educativo, promozionale).
+`;
+    }
+
     const prompt = `Sei un esperto copywriter per personal trainer e coach fitness.
 
 Analizza questa immagine e genera contenuti Instagram in ITALIANO.
 
 ${reelContext}
+
+${templateContext}
 
 L'immagine può mostrare:
 - Esercizi e allenamenti
@@ -80,26 +105,26 @@ Struttura JSON richiesta:
   "variants": [
     {
       "type": "motivazionale",
-      "caption": "caption coinvolgente con emoji (max 200 parole)${totalReels > 1 ? ', adattata alla posizione nella serie' : ''}",
+      "caption": "caption coinvolgente con emoji${template ? ' (RISPETTA lunghezza e tono del template)' : ' (max 200 parole)'}${totalReels > 1 ? ', adattata alla posizione nella serie' : ''}",
       "cta": "call to action efficace",
       "hashtags": ["hashtag1", "hashtag2", "hashtag3", "hashtag4", "hashtag5", "hashtag6", "hashtag7", "hashtag8", "hashtag9", "hashtag10"]
     },
     {
       "type": "educativo",
-      "caption": "caption educativa con emoji (max 200 parole)${totalReels > 1 ? ', adattata alla posizione nella serie' : ''}",
+      "caption": "caption educativa con emoji${template ? ' (RISPETTA lunghezza e tono del template)' : ' (max 200 parole)'}${totalReels > 1 ? ', adattata alla posizione nella serie' : ''}",
       "cta": "call to action efficace",
       "hashtags": ["hashtag1", "hashtag2", "hashtag3", "hashtag4", "hashtag5", "hashtag6", "hashtag7", "hashtag8", "hashtag9", "hashtag10"]
     },
     {
       "type": "promozionale",
-      "caption": "caption promozionale con emoji (max 200 parole)${totalReels > 1 ? ', adattata alla posizione nella serie' : ''}",
+      "caption": "caption promozionale con emoji${template ? ' (RISPETTA lunghezza e tono del template)' : ' (max 200 parole)'}${totalReels > 1 ? ', adattata alla posizione nella serie' : ''}",
       "cta": "call to action efficace",
       "hashtags": ["hashtag1", "hashtag2", "hashtag3", "hashtag4", "hashtag5", "hashtag6", "hashtag7", "hashtag8", "hashtag9", "hashtag10"]
     }
   ]
 }
 
-Scrivi in tono professionale ma amichevole.`;
+Scrivi in tono professionale ma amichevole${template ? ', APPLICANDO RIGOROSAMENTE le impostazioni del template' : ''}.`;
 
     const messages = [
       {
@@ -122,7 +147,7 @@ Scrivi in tono professionale ma amichevole.`;
     const response = await openai.chat.completions.create({
       model: 'gpt-4o',
       messages: messages,
-      max_tokens: 2000,
+      max_tokens: 2500,
       temperature: 0.7,
       response_format: { type: "json_object" }
     });

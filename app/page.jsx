@@ -1,13 +1,231 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import imageCompression from 'browser-image-compression'
+
+// Componente gestione template
+function TemplateManager({ onSelectTemplate, selectedTemplate }) {
+  const [templates, setTemplates] = useState([])
+  const [showForm, setShowForm] = useState(false)
+  const [formData, setFormData] = useState({
+    name: '',
+    tone: 'neutral',
+    captionLength: 'medium',
+    hashtagStyle: 'mixed'
+  })
+
+  useEffect(() => {
+    const saved = localStorage.getItem('fitcontent_templates')
+    if (saved) {
+      setTemplates(JSON.parse(saved))
+    }
+  }, [])
+
+  const saveTemplate = () => {
+    if (!formData.name.trim()) {
+      alert('Inserisci un nome per il template')
+      return
+    }
+
+    const newTemplate = { ...formData, id: Date.now() }
+    const updated = [...templates, newTemplate]
+    setTemplates(updated)
+    localStorage.setItem('fitcontent_templates', JSON.stringify(updated))
+    setFormData({ name: '', tone: 'neutral', captionLength: 'medium', hashtagStyle: 'mixed' })
+    setShowForm(false)
+  }
+
+  const deleteTemplate = (id) => {
+    const updated = templates.filter(t => t.id !== id)
+    setTemplates(updated)
+    localStorage.setItem('fitcontent_templates', JSON.stringify(updated))
+    if (selectedTemplate?.id === id) {
+      onSelectTemplate(null)
+    }
+  }
+
+  return (
+    <div style={{ marginBottom: '25px' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px' }}>
+        <label style={{ fontWeight: '600', color: '#333' }}>Template Stile</label>
+        <button
+          onClick={() => setShowForm(!showForm)}
+          style={{
+            background: '#667eea',
+            color: 'white',
+            border: 'none',
+            padding: '8px 16px',
+            borderRadius: '8px',
+            fontSize: '0.9rem',
+            cursor: 'pointer',
+            fontWeight: '600'
+          }}
+        >
+          {showForm ? 'Annulla' : '+ Nuovo Template'}
+        </button>
+      </div>
+
+      {showForm && (
+        <div style={{
+          background: '#f8f9ff',
+          padding: '20px',
+          borderRadius: '12px',
+          marginBottom: '15px',
+          border: '2px solid #e0e0e0'
+        }}>
+          <div style={{ marginBottom: '15px' }}>
+            <label style={{ display: 'block', fontSize: '0.9rem', marginBottom: '5px', color: '#333' }}>Nome Template</label>
+            <input
+              type="text"
+              placeholder="Es: Post Motivazionali Aggressivi"
+              value={formData.name}
+              onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+              style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '2px solid #e0e0e0' }}
+            />
+          </div>
+
+          <div style={{ marginBottom: '15px' }}>
+            <label style={{ display: 'block', fontSize: '0.9rem', marginBottom: '5px', color: '#333' }}>Tono</label>
+            <select
+              value={formData.tone}
+              onChange={(e) => setFormData({ ...formData, tone: e.target.value })}
+              style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '2px solid #e0e0e0' }}
+            >
+              <option value="neutral">Neutro - Professionale e bilanciato</option>
+              <option value="aggressive">Aggressivo - Diretto e imperativo</option>
+              <option value="soft">Morbido - Empatico e incoraggiante</option>
+            </select>
+          </div>
+
+          <div style={{ marginBottom: '15px' }}>
+            <label style={{ display: 'block', fontSize: '0.9rem', marginBottom: '5px', color: '#333' }}>Lunghezza Caption</label>
+            <select
+              value={formData.captionLength}
+              onChange={(e) => setFormData({ ...formData, captionLength: e.target.value })}
+              style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '2px solid #e0e0e0' }}
+            >
+              <option value="short">Corta (50-80 parole)</option>
+              <option value="medium">Media (100-150 parole)</option>
+              <option value="long">Lunga (150-200 parole)</option>
+            </select>
+          </div>
+
+          <div style={{ marginBottom: '15px' }}>
+            <label style={{ display: 'block', fontSize: '0.9rem', marginBottom: '5px', color: '#333' }}>Stile Hashtag</label>
+            <select
+              value={formData.hashtagStyle}
+              onChange={(e) => setFormData({ ...formData, hashtagStyle: e.target.value })}
+              style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '2px solid #e0e0e0' }}
+            >
+              <option value="mixed">Mix - Popolari + Nicchia</option>
+              <option value="popular">Popolari - Massima reach</option>
+              <option value="niche">Nicchia - Specifici e tecnici</option>
+            </select>
+          </div>
+
+          <button
+            onClick={saveTemplate}
+            style={{
+              background: '#4caf50',
+              color: 'white',
+              border: 'none',
+              padding: '12px 24px',
+              borderRadius: '8px',
+              fontWeight: '600',
+              cursor: 'pointer',
+              width: '100%'
+            }}
+          >
+            Salva Template
+          </button>
+        </div>
+      )}
+
+      <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
+        <button
+          onClick={() => onSelectTemplate(null)}
+          style={{
+            padding: '10px 20px',
+            borderRadius: '8px',
+            border: '2px solid #e0e0e0',
+            background: !selectedTemplate ? '#667eea' : 'white',
+            color: !selectedTemplate ? 'white' : '#666',
+            cursor: 'pointer',
+            fontWeight: '600',
+            fontSize: '0.9rem'
+          }}
+        >
+          Nessun Template
+        </button>
+        {templates.map(template => (
+          <div key={template.id} style={{ position: 'relative' }}>
+            <button
+              onClick={() => onSelectTemplate(template)}
+              style={{
+                padding: '10px 20px',
+                borderRadius: '8px',
+                border: '2px solid #e0e0e0',
+                background: selectedTemplate?.id === template.id ? '#667eea' : 'white',
+                color: selectedTemplate?.id === template.id ? 'white' : '#666',
+                cursor: 'pointer',
+                fontWeight: '600',
+                fontSize: '0.9rem',
+                paddingRight: '35px'
+              }}
+            >
+              {template.name}
+            </button>
+            <button
+              onClick={(e) => {
+                e.stopPropagation()
+                if (confirm(`Eliminare il template "${template.name}"?`)) {
+                  deleteTemplate(template.id)
+                }
+              }}
+              style={{
+                position: 'absolute',
+                right: '5px',
+                top: '50%',
+                transform: 'translateY(-50%)',
+                background: 'transparent',
+                border: 'none',
+                color: selectedTemplate?.id === template.id ? 'white' : '#999',
+                cursor: 'pointer',
+                fontSize: '1.2rem',
+                padding: '0 5px'
+              }}
+            >
+              ×
+            </button>
+          </div>
+        ))}
+      </div>
+
+      {selectedTemplate && (
+        <div style={{
+          marginTop: '15px',
+          padding: '12px',
+          background: '#e3f2fd',
+          borderRadius: '8px',
+          fontSize: '0.85rem',
+          border: '2px solid #2196f3'
+        }}>
+          <strong>Template selezionato:</strong> {selectedTemplate.name}<br />
+          Tono: {selectedTemplate.tone === 'aggressive' ? 'Aggressivo' : selectedTemplate.tone === 'soft' ? 'Morbido' : 'Neutro'} | 
+          Lunghezza: {selectedTemplate.captionLength === 'short' ? 'Corta' : selectedTemplate.captionLength === 'medium' ? 'Media' : 'Lunga'} | 
+          Hashtag: {selectedTemplate.hashtagStyle === 'popular' ? 'Popolari' : selectedTemplate.hashtagStyle === 'niche' ? 'Nicchia' : 'Mix'}
+        </div>
+      )}
+    </div>
+  )
+}
 
 // Componente MediaUpload con multi-upload e split video
 function MediaUpload() {
   const [files, setFiles] = useState([])
   const [seriesTitle, setSeriesTitle] = useState('')
   const [chunkDuration, setChunkDuration] = useState(90)
+  const [selectedTemplate, setSelectedTemplate] = useState(null)
   const [processing, setProcessing] = useState(false)
   const [uploadProgress, setUploadProgress] = useState([])
   const [reels, setReels] = useState([])
@@ -235,13 +453,17 @@ function MediaUpload() {
           idx === fileChunk.fileIndex ? { ...p, status: 'analyzing' } : p
         ))
 
-        // Analisi
+        // Analisi con info reel e template
         const analyzeRes = await fetch('/api/analyze', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             mediaUrl: uploadData.url,
             mediaType: 'image',
+            reelNumber: i + 1,
+            totalReels: files.length,
+            seriesTitle: seriesTitle || null,
+            template: selectedTemplate || null,
           }),
         })
 
@@ -301,6 +523,11 @@ function MediaUpload() {
 
       {files.length === 0 && (
         <>
+          <TemplateManager 
+            selectedTemplate={selectedTemplate}
+            onSelectTemplate={setSelectedTemplate}
+          />
+
           <div className="form-group" style={{marginBottom: '20px'}}>
             <label>Titolo Serie (opzionale)</label>
             <input
@@ -445,6 +672,7 @@ function MediaUpload() {
           }}>
             <strong>Files pronti:</strong> {files.length} {files.length > 1 ? 'reel' : 'media'}
             {seriesTitle && <div style={{marginTop: '5px'}}>Serie: <strong>{seriesTitle}</strong></div>}
+            {selectedTemplate && <div style={{marginTop: '5px'}}>Template: <strong>{selectedTemplate.name}</strong></div>}
           </div>
 
           <button
