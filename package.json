@@ -11,6 +11,7 @@
   "dependencies": {
     "@supabase/supabase-js": "2.43.4",
     "@vercel/blob": "^2.0.0",
+    "browser-image-compression": "^2.0.2",
     "next": "14.2.3",
     "openai": "4.47.1",
     "react": "18.3.1",

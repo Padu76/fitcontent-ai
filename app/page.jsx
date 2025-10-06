@@ -1,38 +1,82 @@
 'use client'
 
 import { useState } from 'react'
+import imageCompression from 'browser-image-compression'
 
 // Componente MediaUpload integrato
 function MediaUpload() {
   const [file, setFile] = useState(null)
   const [preview, setPreview] = useState(null)
+  const [compressing, setCompressing] = useState(false)
   const [uploading, setUploading] = useState(false)
   const [analyzing, setAnalyzing] = useState(false)
   const [results, setResults] = useState(null)
   const [error, setError] = useState(null)
 
-  const handleFileChange = (e) => {
+  const handleFileChange = async (e) => {
     const selectedFile = e.target.files[0]
     if (selectedFile) {
-      setFile(selectedFile)
-      setError(null)
-      
-      const reader = new FileReader()
-      reader.onload = (e) => setPreview(e.target.result)
-      reader.readAsDataURL(selectedFile)
+      await processFile(selectedFile)
     }
   }
 
-  const handleDrop = (e) => {
+  const handleDrop = async (e) => {
     e.preventDefault()
     const droppedFile = e.dataTransfer.files[0]
     if (droppedFile) {
-      setFile(droppedFile)
-      setError(null)
-      
+      await processFile(droppedFile)
+    }
+  }
+
+  const processFile = async (selectedFile) => {
+    setError(null)
+
+    // Check tipo file
+    const isImage = selectedFile.type.startsWith('image')
+    const isVideo = selectedFile.type.startsWith('video')
+
+    if (!isImage && !isVideo) {
+      setError('Formato non supportato. Usa JPG, PNG o MP4')
+      return
+    }
+
+    // Video: limite 20MB
+    if (isVideo) {
+      const maxVideoSize = 20 * 1024 * 1024
+      if (selectedFile.size > maxVideoSize) {
+        setError('Video troppo grande (max 20MB). Comprimi il video prima di caricarlo.')
+        return
+      }
+      setFile(selectedFile)
       const reader = new FileReader()
       reader.onload = (e) => setPreview(e.target.result)
-      reader.readAsDataURL(droppedFile)
+      reader.readAsDataURL(selectedFile)
+      return
+    }
+
+    // Immagine: comprimi automaticamente
+    if (isImage) {
+      setCompressing(true)
+      try {
+        const options = {
+          maxSizeMB: 1,
+          maxWidthOrHeight: 1920,
+          useWebWorker: true,
+          fileType: selectedFile.type
+        }
+        
+        const compressedFile = await imageCompression(selectedFile, options)
+        
+        setFile(compressedFile)
+        const reader = new FileReader()
+        reader.onload = (e) => setPreview(e.target.result)
+        reader.readAsDataURL(compressedFile)
+        
+        setCompressing(false)
+      } catch (err) {
+        setError('Errore durante la compressione: ' + err.message)
+        setCompressing(false)
+      }
     }
   }
 
@@ -87,12 +131,12 @@ function MediaUpload() {
 
   const copyToClipboard = (text) => {
     navigator.clipboard.writeText(text)
-    alert('✅ Copiato!')
+    alert('Copiato!')
   }
 
   return (
     <div className="card">
-      <h2 style={{fontSize: '1.8rem', marginBottom: '20px', color: '#333'}}>📸 Carica Video o Foto</h2>
+      <h2 style={{fontSize: '1.8rem', marginBottom: '20px', color: '#333'}}>Carica Video o Foto</h2>
 
       <div
         onDrop={handleDrop}
@@ -115,20 +159,30 @@ function MediaUpload() {
           id="fileInput"
         />
         <label htmlFor="fileInput" style={{cursor: 'pointer'}}>
-          {preview ? (
+          {compressing ? (
+            <div>
+              <div className="spinner" style={{margin: '20px auto'}}></div>
+              <p style={{color: '#667eea', fontWeight: '600'}}>Compressione immagine...</p>
+            </div>
+          ) : preview ? (
             <div>
               {file?.type.startsWith('video') ? (
                 <video src={preview} controls style={{maxHeight: '250px', margin: '0 auto', borderRadius: '10px'}} />
               ) : (
                 <img src={preview} alt="Preview" style={{maxHeight: '250px', margin: '0 auto', borderRadius: '10px'}} />
               )}
-              <p style={{marginTop: '15px', fontSize: '0.9rem', color: '#666'}}>{file?.name}</p>
+              <p style={{marginTop: '15px', fontSize: '0.9rem', color: '#666'}}>
+                {file?.name} ({(file?.size / 1024 / 1024).toFixed(2)} MB)
+              </p>
             </div>
           ) : (
             <div>
-              <p style={{fontSize: '1.5rem', marginBottom: '10px'}}>📁 Trascina qui il file</p>
+              <p style={{fontSize: '1.5rem', marginBottom: '10px'}}>Trascina qui il file</p>
               <p style={{color: '#999'}}>oppure clicca per selezionare</p>
-              <p style={{fontSize: '0.85rem', color: '#bbb', marginTop: '10px'}}>JPG, PNG, MP4 (max 50MB)</p>
+              <p style={{fontSize: '0.85rem', color: '#bbb', marginTop: '10px'}}>
+                Immagini: JPG, PNG (compressione automatica)<br/>
+                Video: MP4 max 20MB
+              </p>
             </div>
           )}
         </label>
@@ -143,11 +197,11 @@ function MediaUpload() {
           borderRadius: '10px',
           border: '2px solid #ef5350'
         }}>
-          ❌ {error}
+          {error}
         </div>
       )}
 
-      {file && !results && (
+      {file && !results && !compressing && (
         <button
           onClick={handleUploadAndAnalyze}
           disabled={uploading || analyzing}
@@ -158,7 +212,7 @@ function MediaUpload() {
             opacity: (uploading || analyzing) ? 0.6 : 1
           }}
         >
-          {uploading ? '⏳ Caricamento...' : analyzing ? '🤖 Analisi AI in corso...' : '🚀 Analizza e Genera Post'}
+          {uploading ? 'Caricamento...' : analyzing ? 'Analisi AI in corso...' : 'Analizza e Genera Post'}
         </button>
       )}
 
@@ -171,7 +225,7 @@ function MediaUpload() {
             marginBottom: '20px',
             border: '2px solid #2196f3'
           }}>
-            <strong>📝 Descrizione:</strong> {results.description}
+            <strong>Descrizione:</strong> {results.description}
           </div>
 
           {results.variants?.map((variant, i) => (
@@ -210,7 +264,7 @@ function MediaUpload() {
                     fontSize: '0.9rem'
                   }}
                 >
-                  📋 Copia
+                  Copia
                 </button>
               </div>
               <p style={{
@@ -257,7 +311,7 @@ function MediaUpload() {
               fontSize: '1rem'
             }}
           >
-            🔄 Carica Altro Media
+            Carica Altro Media
           </button>
         </div>
       )}
@@ -345,7 +399,7 @@ export default function Home() {
 
   const copyToClipboard = (text) => {
     navigator.clipboard.writeText(text)
-    alert('Caption copiata! ✅')
+    alert('Caption copiata!')
   }
 
   if (showGenerator) {
@@ -353,7 +407,7 @@ export default function Home() {
       <div className="container">
         <div style={{textAlign: 'center', color: 'white', marginBottom: '40px'}}>
           <h1 style={{fontSize: '2.5rem', fontWeight: '800', marginBottom: '10px'}}>
-            💪 FitContent AI
+            FitContent AI
           </h1>
           <p style={{fontSize: '1.1rem', opacity: 0.9}}>
             Trasforma le tue sessioni in contenuti pronti da postare
@@ -371,7 +425,7 @@ export default function Home() {
               fontSize: '0.9rem'
             }}
           >
-            ← Torna alla guida
+            Torna alla guida
           </button>
         </div>
 
@@ -400,7 +454,7 @@ export default function Home() {
                 : 'none'
             }}
           >
-            📝 Genera da Testo
+            Genera da Testo
           </button>
           <button
             onClick={() => setActiveTab('media')}
@@ -421,14 +475,14 @@ export default function Home() {
                 : 'none'
             }}
           >
-            📸 Carica Media
+            Carica Media
           </button>
         </div>
 
         {activeTab === 'text' && (
           <div className="card">
             <div className="form-group">
-              <label>📝 Descrivi l'allenamento</label>
+              <label>Descrivi l'allenamento</label>
               <textarea
                 placeholder="Es: Sessione gambe intensa con focus su squat. Cliente ha migliorato il carico del 10%"
                 value={description}
@@ -437,7 +491,7 @@ export default function Home() {
             </div>
 
             <div className="form-group">
-              <label>🎯 Tipo contenuto</label>
+              <label>Tipo contenuto</label>
               <select value={contentType} onChange={(e) => setContentType(e.target.value)}>
                 <option value="workout">Allenamento</option>
                 <option value="transformation">Trasformazione</option>
@@ -447,7 +501,7 @@ export default function Home() {
             </div>
 
             <button className="btn" onClick={handleGenerate} disabled={loading}>
-              {loading ? 'Generazione...' : '✨ Genera 3 post'}
+              {loading ? 'Generazione...' : 'Genera 3 post'}
             </button>
 
             {loading && (
@@ -459,13 +513,13 @@ export default function Home() {
 
             {posts && (
               <div style={{marginTop: '40px'}}>
-                <h3 style={{marginBottom: '20px', color: '#333'}}>📱 I tuoi post pronti</h3>
+                <h3 style={{marginBottom: '20px', color: '#333'}}>I tuoi post pronti</h3>
                 {posts.map((post, i) => (
                   <div key={i} className={`post-card ${post.post_type}`}>
                     <span className={`post-type ${post.post_type}`}>
-                      {post.post_type === 'motivational' && '🔥 Motivazionale'}
-                      {post.post_type === 'educational' && '📚 Educativo'}
-                      {post.post_type === 'promotional' && '🎯 Promozionale'}
+                      {post.post_type === 'motivational' && 'Motivazionale'}
+                      {post.post_type === 'educational' && 'Educativo'}
+                      {post.post_type === 'promotional' && 'Promozionale'}
                     </span>
                     <div className="caption">{post.caption}</div>
                     <div className="hashtags" style={{marginTop: '15px'}}>{post.hashtags}</div>
@@ -477,7 +531,7 @@ export default function Home() {
                       style={{marginTop: '15px', padding: '10px 20px', fontSize: '0.9rem', width: 'auto'}}
                       onClick={() => copyToClipboard(`${post.caption}\n\n${post.hashtags}`)}
                     >
-                      📋 Copia caption
+                      Copia caption
                     </button>
                   </div>
                 ))}
@@ -490,12 +544,12 @@ export default function Home() {
                   border: '2px solid #4caf50'
                 }}>
                   <div style={{fontSize: '1.2rem', fontWeight: '600', color: '#2e7d32', marginBottom: '10px'}}>
-                    🎉 Hai appena risparmiato 30 minuti!
+                    Hai appena risparmiato 30 minuti!
                   </div>
                   <div style={{color: '#555', lineHeight: '1.6'}}>
                     Tempo per scrivere 3 post manualmente: ~45 minuti<br/>
                     Tempo con FitContent AI: 2 minuti<br/>
-                    <strong style={{color: '#2e7d32'}}>⏱️ Risparmio: 43 minuti</strong>
+                    <strong style={{color: '#2e7d32'}}>Risparmio: 43 minuti</strong>
                   </div>
                 </div>
               </div>
@@ -512,7 +566,7 @@ export default function Home() {
     <div className="container">
       <div style={{textAlign: 'center', color: 'white', marginBottom: '50px'}}>
         <h1 style={{fontSize: '3rem', fontWeight: '800', marginBottom: '15px', lineHeight: '1.2'}}>
-          💪 FitContent AI
+          FitContent AI
         </h1>
         <p style={{fontSize: '1.3rem', opacity: 0.95, marginBottom: '10px'}}>
           Da allenamento a 3 post Instagram in 10 secondi
@@ -524,7 +578,7 @@ export default function Home() {
 
       <div className="card" style={{marginBottom: '30px'}}>
         <h2 style={{textAlign: 'center', marginBottom: '35px', color: '#333', fontSize: '1.8rem'}}>
-          ⚡ Perché usarlo
+          Perché usarlo
         </h2>
         
         <div style={{
@@ -566,7 +620,7 @@ export default function Home() {
           textAlign: 'center'
         }}>
           <div style={{fontSize: '1.3rem', fontWeight: '700', marginBottom: '8px'}}>
-            💡 Calcolo veloce
+            Calcolo veloce
           </div>
           <div style={{fontSize: '1rem', opacity: 0.95}}>
             Tempo risparmiato: <strong>~20 ore/mese</strong> • Valore: <strong>1.000€</strong>
@@ -576,7 +630,7 @@ export default function Home() {
 
       <div className="card">
         <h2 style={{textAlign: 'center', marginBottom: '15px', color: '#333', fontSize: '1.8rem'}}>
-          🎓 Come funziona
+          Come funziona
         </h2>
         <p style={{textAlign: 'center', color: '#666', marginBottom: '40px', fontSize: '1rem'}}>
           3 step semplicissimi
@@ -679,7 +733,7 @@ export default function Home() {
             textAlign: 'center',
             fontStyle: 'italic'
           }}>
-            💡 {steps[currentStep].example}
+            {steps[currentStep].example}
           </div>
         </div>
 
@@ -705,7 +759,7 @@ export default function Home() {
               flex: 1
             }}
           >
-            ← Indietro
+            Indietro
           </button>
 
           {currentStep < steps.length - 1 ? (
@@ -723,7 +777,7 @@ export default function Home() {
                 flex: 1
               }}
             >
-              Avanti →
+              Avanti
             </button>
           ) : (
             <button
@@ -741,7 +795,7 @@ export default function Home() {
                 boxShadow: '0 5px 15px rgba(67, 233, 123, 0.4)'
               }}
             >
-              🚀 Inizia ora!
+              Inizia ora!
             </button>
           )}
         </div>
@@ -772,7 +826,7 @@ export default function Home() {
             boxShadow: '0 10px 30px rgba(0,0,0,0.3)'
           }}
         >
-          🚀 Inizia gratis ora
+          Inizia gratis ora
         </button>
       </div>
     </div>
