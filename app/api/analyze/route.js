@@ -6,19 +6,56 @@ const openai = new OpenAI({
 
 export async function POST(request) {
   try {
-    const { mediaUrl, mediaType } = await request.json();
+    const { mediaUrl, mediaType, reelNumber, totalReels, seriesTitle } = await request.json();
 
     console.log('=== ANALYZE REQUEST START ===');
     console.log('Media URL:', mediaUrl);
     console.log('Media Type:', mediaType);
+    console.log('Reel Info:', { reelNumber, totalReels, seriesTitle });
 
     if (!mediaUrl) {
       return Response.json({ error: 'URL media mancante' }, { status: 400 });
     }
 
+    // Costruisci context per reel consecutivi
+    let reelContext = '';
+    if (reelNumber && totalReels) {
+      if (totalReels > 1) {
+        if (reelNumber === 1) {
+          reelContext = `
+IMPORTANTE: Questa è la PARTE ${reelNumber} di ${totalReels} di una serie di reel consecutivi${seriesTitle ? ` intitolata "${seriesTitle}"` : ''}.
+- Questo è il PRIMO reel della serie
+- Crea una caption che INTRODUCE il contenuto e crea aspettativa per le prossime parti
+- Usa frasi come "Iniziamo con...", "Prima parte...", "Swipe per vedere il resto"
+- Mantieni un tono che invita a guardare i prossimi reel
+`;
+        } else if (reelNumber === totalReels) {
+          reelContext = `
+IMPORTANTE: Questa è la PARTE ${reelNumber} di ${totalReels} di una serie di reel consecutivi${seriesTitle ? ` intitolata "${seriesTitle}"` : ''}.
+- Questo è l'ULTIMO reel della serie
+- Crea una caption che CONCLUDE il contenuto iniziato nei reel precedenti
+- Usa frasi come "E per finire...", "Ultima parte...", "Ricapitolando..."
+- Aggiungi una CTA forte per engagement (commenti, salva, condividi)
+`;
+        } else {
+          reelContext = `
+IMPORTANTE: Questa è la PARTE ${reelNumber} di ${totalReels} di una serie di reel consecutivi${seriesTitle ? ` intitolata "${seriesTitle}"` : ''}.
+- Questo è un reel INTERMEDIO della serie
+- Crea una caption che CONTINUA il contenuto iniziato nel reel precedente
+- Usa frasi come "Continuiamo con...", "Ora vediamo...", "Prossimo step..."
+- Mantieni la continuità narrativa senza ripetere informazioni già date
+`;
+        }
+      } else {
+        reelContext = `Questo è un singolo reel${seriesTitle ? ` intitolato "${seriesTitle}"` : ''}.`;
+      }
+    }
+
     const prompt = `Sei un esperto copywriter per personal trainer e coach fitness.
 
 Analizza questa immagine e genera contenuti Instagram in ITALIANO.
+
+${reelContext}
 
 L'immagine può mostrare:
 - Esercizi e allenamenti
@@ -28,25 +65,34 @@ L'immagine può mostrare:
 
 IMPORTANTE: Rispondi SOLO con un oggetto JSON valido, senza testo aggiuntivo, markdown o spiegazioni.
 
+${totalReels > 1 ? `
+CONTINUITÀ TRA REEL:
+- Se è il primo reel: crea suspense e anticipa cosa verrà dopo
+- Se è un reel intermedio: richiama brevemente il contesto e prosegui
+- Se è l'ultimo reel: chiudi con un recap e una CTA potente
+- NON ripetere informazioni già date nei reel precedenti
+- Mantieni un filo narrativo coerente
+` : ''}
+
 Struttura JSON richiesta:
 {
   "description": "descrizione breve del contenuto mostrato (max 30 parole)",
   "variants": [
     {
       "type": "motivazionale",
-      "caption": "caption coinvolgente con emoji (max 200 parole)",
+      "caption": "caption coinvolgente con emoji (max 200 parole)${totalReels > 1 ? ', adattata alla posizione nella serie' : ''}",
       "cta": "call to action efficace",
       "hashtags": ["hashtag1", "hashtag2", "hashtag3", "hashtag4", "hashtag5", "hashtag6", "hashtag7", "hashtag8", "hashtag9", "hashtag10"]
     },
     {
       "type": "educativo",
-      "caption": "caption educativa con emoji (max 200 parole)",
+      "caption": "caption educativa con emoji (max 200 parole)${totalReels > 1 ? ', adattata alla posizione nella serie' : ''}",
       "cta": "call to action efficace",
       "hashtags": ["hashtag1", "hashtag2", "hashtag3", "hashtag4", "hashtag5", "hashtag6", "hashtag7", "hashtag8", "hashtag9", "hashtag10"]
     },
     {
       "type": "promozionale",
-      "caption": "caption promozionale con emoji (max 200 parole)",
+      "caption": "caption promozionale con emoji (max 200 parole)${totalReels > 1 ? ', adattata alla posizione nella serie' : ''}",
       "cta": "call to action efficace",
       "hashtags": ["hashtag1", "hashtag2", "hashtag3", "hashtag4", "hashtag5", "hashtag6", "hashtag7", "hashtag8", "hashtag9", "hashtag10"]
     }
