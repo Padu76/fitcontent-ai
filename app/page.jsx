@@ -1,237 +1,28 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
 import imageCompression from 'browser-image-compression'
 
-// Componente gestione template
-function TemplateManager({ onSelectTemplate, selectedTemplate }) {
-  const [templates, setTemplates] = useState([])
-  const [showForm, setShowForm] = useState(false)
-  const [formData, setFormData] = useState({
-    name: '',
-    tone: 'neutral',
-    captionLength: 'medium',
-    hashtagStyle: 'mixed'
-  })
-
-  useEffect(() => {
-    const saved = localStorage.getItem('fitcontent_templates')
-    if (saved) {
-      setTemplates(JSON.parse(saved))
-    }
-  }, [])
-
-  const saveTemplate = () => {
-    if (!formData.name.trim()) {
-      alert('Inserisci un nome per il template')
-      return
-    }
-
-    const newTemplate = { ...formData, id: Date.now() }
-    const updated = [...templates, newTemplate]
-    setTemplates(updated)
-    localStorage.setItem('fitcontent_templates', JSON.stringify(updated))
-    setFormData({ name: '', tone: 'neutral', captionLength: 'medium', hashtagStyle: 'mixed' })
-    setShowForm(false)
-  }
-
-  const deleteTemplate = (id) => {
-    const updated = templates.filter(t => t.id !== id)
-    setTemplates(updated)
-    localStorage.setItem('fitcontent_templates', JSON.stringify(updated))
-    if (selectedTemplate?.id === id) {
-      onSelectTemplate(null)
-    }
-  }
-
-  return (
-    <div style={{ marginBottom: '25px' }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px' }}>
-        <label style={{ fontWeight: '600', color: '#333' }}>Template Stile</label>
-        <button
-          onClick={() => setShowForm(!showForm)}
-          style={{
-            background: '#667eea',
-            color: 'white',
-            border: 'none',
-            padding: '8px 16px',
-            borderRadius: '8px',
-            fontSize: '0.9rem',
-            cursor: 'pointer',
-            fontWeight: '600'
-          }}
-        >
-          {showForm ? 'Annulla' : '+ Nuovo Template'}
-        </button>
-      </div>
-
-      {showForm && (
-        <div style={{
-          background: '#f8f9ff',
-          padding: '20px',
-          borderRadius: '12px',
-          marginBottom: '15px',
-          border: '2px solid #e0e0e0'
-        }}>
-          <div style={{ marginBottom: '15px' }}>
-            <label style={{ display: 'block', fontSize: '0.9rem', marginBottom: '5px', color: '#333' }}>Nome Template</label>
-            <input
-              type="text"
-              placeholder="Es: Post Motivazionali Aggressivi"
-              value={formData.name}
-              onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-              style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '2px solid #e0e0e0' }}
-            />
-          </div>
-
-          <div style={{ marginBottom: '15px' }}>
-            <label style={{ display: 'block', fontSize: '0.9rem', marginBottom: '5px', color: '#333' }}>Tono</label>
-            <select
-              value={formData.tone}
-              onChange={(e) => setFormData({ ...formData, tone: e.target.value })}
-              style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '2px solid #e0e0e0' }}
-            >
-              <option value="neutral">Neutro - Professionale e bilanciato</option>
-              <option value="aggressive">Aggressivo - Diretto e imperativo</option>
-              <option value="soft">Morbido - Empatico e incoraggiante</option>
-            </select>
-          </div>
-
-          <div style={{ marginBottom: '15px' }}>
-            <label style={{ display: 'block', fontSize: '0.9rem', marginBottom: '5px', color: '#333' }}>Lunghezza Caption</label>
-            <select
-              value={formData.captionLength}
-              onChange={(e) => setFormData({ ...formData, captionLength: e.target.value })}
-              style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '2px solid #e0e0e0' }}
-            >
-              <option value="short">Corta (50-80 parole)</option>
-              <option value="medium">Media (100-150 parole)</option>
-              <option value="long">Lunga (150-200 parole)</option>
-            </select>
-          </div>
-
-          <div style={{ marginBottom: '15px' }}>
-            <label style={{ display: 'block', fontSize: '0.9rem', marginBottom: '5px', color: '#333' }}>Stile Hashtag</label>
-            <select
-              value={formData.hashtagStyle}
-              onChange={(e) => setFormData({ ...formData, hashtagStyle: e.target.value })}
-              style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '2px solid #e0e0e0' }}
-            >
-              <option value="mixed">Mix - Popolari + Nicchia</option>
-              <option value="popular">Popolari - Massima reach</option>
-              <option value="niche">Nicchia - Specifici e tecnici</option>
-            </select>
-          </div>
-
-          <button
-            onClick={saveTemplate}
-            style={{
-              background: '#4caf50',
-              color: 'white',
-              border: 'none',
-              padding: '12px 24px',
-              borderRadius: '8px',
-              fontWeight: '600',
-              cursor: 'pointer',
-              width: '100%'
-            }}
-          >
-            Salva Template
-          </button>
-        </div>
-      )}
-
-      <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
-        <button
-          onClick={() => onSelectTemplate(null)}
-          style={{
-            padding: '10px 20px',
-            borderRadius: '8px',
-            border: '2px solid #e0e0e0',
-            background: !selectedTemplate ? '#667eea' : 'white',
-            color: !selectedTemplate ? 'white' : '#666',
-            cursor: 'pointer',
-            fontWeight: '600',
-            fontSize: '0.9rem'
-          }}
-        >
-          Nessun Template
-        </button>
-        {templates.map(template => (
-          <div key={template.id} style={{ position: 'relative' }}>
-            <button
-              onClick={() => onSelectTemplate(template)}
-              style={{
-                padding: '10px 20px',
-                borderRadius: '8px',
-                border: '2px solid #e0e0e0',
-                background: selectedTemplate?.id === template.id ? '#667eea' : 'white',
-                color: selectedTemplate?.id === template.id ? 'white' : '#666',
-                cursor: 'pointer',
-                fontWeight: '600',
-                fontSize: '0.9rem',
-                paddingRight: '35px'
-              }}
-            >
-              {template.name}
-            </button>
-            <button
-              onClick={(e) => {
-                e.stopPropagation()
-                if (confirm(`Eliminare il template "${template.name}"?`)) {
-                  deleteTemplate(template.id)
-                }
-              }}
-              style={{
-                position: 'absolute',
-                right: '5px',
-                top: '50%',
-                transform: 'translateY(-50%)',
-                background: 'transparent',
-                border: 'none',
-                color: selectedTemplate?.id === template.id ? 'white' : '#999',
-                cursor: 'pointer',
-                fontSize: '1.2rem',
-                padding: '0 5px'
-              }}
-            >
-              ×
-            </button>
-          </div>
-        ))}
-      </div>
-
-      {selectedTemplate && (
-        <div style={{
-          marginTop: '15px',
-          padding: '12px',
-          background: '#e3f2fd',
-          borderRadius: '8px',
-          fontSize: '0.85rem',
-          border: '2px solid #2196f3'
-        }}>
-          <strong>Template selezionato:</strong> {selectedTemplate.name}<br />
-          Tono: {selectedTemplate.tone === 'aggressive' ? 'Aggressivo' : selectedTemplate.tone === 'soft' ? 'Morbido' : 'Neutro'} | 
-          Lunghezza: {selectedTemplate.captionLength === 'short' ? 'Corta' : selectedTemplate.captionLength === 'medium' ? 'Media' : 'Lunga'} | 
-          Hashtag: {selectedTemplate.hashtagStyle === 'popular' ? 'Popolari' : selectedTemplate.hashtagStyle === 'niche' ? 'Nicchia' : 'Mix'}
-        </div>
-      )}
-    </div>
-  )
-}
-
-// Componente MediaUpload con multi-upload e split video
+// Componente MediaUpload semplificato
 function MediaUpload() {
   const [files, setFiles] = useState([])
-  const [seriesTitle, setSeriesTitle] = useState('')
-  const [chunkDuration, setChunkDuration] = useState(90)
-  const [selectedTemplate, setSelectedTemplate] = useState(null)
   const [processing, setProcessing] = useState(false)
-  const [uploadProgress, setUploadProgress] = useState([])
+  const [analyzing, setAnalyzing] = useState(false)
+  const [currentAnalyzing, setCurrentAnalyzing] = useState(null)
+  const [loadingText, setLoadingText] = useState('Analisi in corso...')
   const [reels, setReels] = useState([])
   const [error, setError] = useState(null)
 
-  // Estrai frame da video a un determinato timestamp
+  // Testi loading animati
+  const loadingTexts = [
+    'Analisi AI in corso...',
+    'Elaborazione contenuto...',
+    'Generazione caption...',
+    'Creazione hashtag...',
+    'Quasi pronto...'
+  ]
+
+  // Estrai frame da video
   const extractVideoFrame = (videoFile, timestamp = 1) => {
     return new Promise((resolve, reject) => {
       const video = document.createElement('video')
@@ -265,22 +56,6 @@ function MediaUpload() {
     })
   }
 
-  // Ottieni durata video
-  const getVideoDuration = (videoFile) => {
-    return new Promise((resolve, reject) => {
-      const video = document.createElement('video')
-      video.preload = 'metadata'
-      video.muted = true
-      
-      video.onloadedmetadata = () => {
-        resolve(video.duration)
-      }
-      
-      video.onerror = () => reject(new Error('Impossibile leggere durata video'))
-      video.src = URL.createObjectURL(videoFile)
-    })
-  }
-
   // Processa singolo file
   const processFile = async (file) => {
     const isImage = file.type.startsWith('image')
@@ -290,128 +65,64 @@ function MediaUpload() {
       throw new Error('Formato non supportato')
     }
 
+    let frameToCompress
+
     if (isVideo) {
       const maxVideoSize = 100 * 1024 * 1024
       if (file.size > maxVideoSize) {
         throw new Error('Video troppo grande (max 100MB)')
       }
 
-      const duration = await getVideoDuration(file)
-      const chunks = []
-
-      // Se video è più lungo del chunk, dividi
-      if (duration > chunkDuration) {
-        const numChunks = Math.ceil(duration / chunkDuration)
-        for (let i = 0; i < numChunks; i++) {
-          const timestamp = i * chunkDuration + 1
-          chunks.push({
-            chunkIndex: i,
-            totalChunks: numChunks,
-            timestamp,
-            duration: Math.min(chunkDuration, duration - i * chunkDuration)
-          })
-        }
-      } else {
-        chunks.push({
-          chunkIndex: 0,
-          totalChunks: 1,
-          timestamp: 1,
-          duration
-        })
-      }
-
-      // Estrai frame da ogni chunk
-      const processedChunks = []
-      for (const chunk of chunks) {
-        const frameFile = await extractVideoFrame(file, chunk.timestamp)
-        
-        const options = {
-          maxSizeMB: 1,
-          maxWidthOrHeight: 1920,
-          useWebWorker: true,
-          fileType: 'image/jpeg'
-        }
-        
-        const compressedFrame = await imageCompression(frameFile, options)
-        
-        processedChunks.push({
-          ...chunk,
-          frame: compressedFrame,
-          originalFile: file,
-          preview: URL.createObjectURL(file)
-        })
-      }
-
-      return processedChunks
+      frameToCompress = await extractVideoFrame(file, 1)
+    } else {
+      frameToCompress = file
     }
 
-    // Immagine
+    // Comprimi
     const options = {
       maxSizeMB: 1,
       maxWidthOrHeight: 1920,
       useWebWorker: true,
-      fileType: file.type
+      fileType: isVideo ? 'image/jpeg' : file.type
     }
     
-    const compressedFile = await imageCompression(file, options)
+    const compressedFrame = await imageCompression(frameToCompress, options)
     
-    return [{
-      chunkIndex: 0,
-      totalChunks: 1,
-      frame: compressedFile,
+    return {
       originalFile: file,
-      preview: URL.createObjectURL(compressedFile),
-      timestamp: 0,
-      duration: 0
-    }]
+      frame: compressedFrame,
+      preview: URL.createObjectURL(isVideo ? file : compressedFrame),
+      isVideo,
+      name: file.name,
+      id: Date.now() + Math.random()
+    }
   }
 
   const handleFileChange = async (e) => {
     const selectedFiles = Array.from(e.target.files).slice(0, 10)
     if (selectedFiles.length > 0) {
-      await processFiles(selectedFiles)
+      await addFiles(selectedFiles)
     }
   }
 
-  const handleDrop = async (e) => {
-    e.preventDefault()
-    const droppedFiles = Array.from(e.dataTransfer.files).slice(0, 10)
-    if (droppedFiles.length > 0) {
-      await processFiles(droppedFiles)
-    }
-  }
-
-  const processFiles = async (selectedFiles) => {
+  const addFiles = async (selectedFiles) => {
     setError(null)
-    setReels([])
     setProcessing(true)
-    setUploadProgress([])
 
-    const allChunks = []
+    const processedFiles = []
 
     try {
-      for (let i = 0; i < selectedFiles.length; i++) {
-        setUploadProgress(prev => [...prev, { index: i, status: 'processing', name: selectedFiles[i].name }])
-        
+      for (const file of selectedFiles) {
         try {
-          const chunks = await processFile(selectedFiles[i])
-          allChunks.push(...chunks.map(chunk => ({
-            ...chunk,
-            fileIndex: i,
-            fileName: selectedFiles[i].name
-          })))
-          
-          setUploadProgress(prev => prev.map((p, idx) => 
-            idx === i ? { ...p, status: 'ready' } : p
-          ))
+          const processed = await processFile(file)
+          processedFiles.push(processed)
         } catch (err) {
-          setUploadProgress(prev => prev.map((p, idx) => 
-            idx === i ? { ...p, status: 'error', error: err.message } : p
-          ))
+          console.error('Errore processing file:', err)
+          setError(`Errore su ${file.name}: ${err.message}`)
         }
       }
 
-      setFiles(allChunks)
+      setFiles(prev => [...prev, ...processedFiles])
       setProcessing(false)
 
     } catch (err) {
@@ -420,23 +131,32 @@ function MediaUpload() {
     }
   }
 
-  const handleUploadAndAnalyze = async () => {
+  const removeFile = (id) => {
+    setFiles(prev => prev.filter(f => f.id !== id))
+  }
+
+  const handleGenerateReels = async () => {
     if (files.length === 0) return
 
     setError(null)
+    setAnalyzing(true)
     const generatedReels = []
 
+    // Animazione testo loading
+    let textIndex = 0
+    const textInterval = setInterval(() => {
+      textIndex = (textIndex + 1) % loadingTexts.length
+      setLoadingText(loadingTexts[textIndex])
+    }, 2000)
+
     for (let i = 0; i < files.length; i++) {
-      const fileChunk = files[i]
-      
-      setUploadProgress(prev => prev.map((p, idx) => 
-        idx === fileChunk.fileIndex ? { ...p, status: 'uploading' } : p
-      ))
+      const file = files[i]
+      setCurrentAnalyzing(i)
 
       try {
-        // Upload frame
+        // Upload
         const formData = new FormData()
-        formData.append('file', fileChunk.frame)
+        formData.append('file', file.frame)
 
         const uploadRes = await fetch('/api/upload', {
           method: 'POST',
@@ -449,21 +169,13 @@ function MediaUpload() {
           throw new Error(uploadData.error)
         }
 
-        setUploadProgress(prev => prev.map((p, idx) => 
-          idx === fileChunk.fileIndex ? { ...p, status: 'analyzing' } : p
-        ))
-
-        // Analisi con info reel e template
+        // Analisi
         const analyzeRes = await fetch('/api/analyze', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             mediaUrl: uploadData.url,
             mediaType: 'image',
-            reelNumber: i + 1,
-            totalReels: files.length,
-            seriesTitle: seriesTitle || null,
-            template: selectedTemplate || null,
           }),
         })
 
@@ -473,35 +185,28 @@ function MediaUpload() {
           throw new Error(analyzeData.error)
         }
 
-        // Aggiungi info reel
-        const reelNumber = i + 1
-        const totalReels = files.length
-        const reelTitle = seriesTitle 
-          ? `${seriesTitle} - Reel ${reelNumber} di ${totalReels}`
-          : `Reel ${reelNumber} di ${totalReels}`
-
         generatedReels.push({
           ...analyzeData.data,
-          reelNumber,
-          totalReels,
-          reelTitle,
-          preview: fileChunk.preview,
-          fileName: fileChunk.fileName,
-          chunkInfo: fileChunk.totalChunks > 1 ? `Parte ${fileChunk.chunkIndex + 1}/${fileChunk.totalChunks}` : null
+          preview: file.preview,
+          fileName: file.name,
+          fileId: file.id
         })
 
-        setUploadProgress(prev => prev.map((p, idx) => 
-          idx === fileChunk.fileIndex ? { ...p, status: 'done' } : p
-        ))
-
       } catch (err) {
-        setUploadProgress(prev => prev.map((p, idx) => 
-          idx === fileChunk.fileIndex ? { ...p, status: 'error', error: err.message } : p
-        ))
+        console.error('Errore su file:', file.name, err)
+        generatedReels.push({
+          error: true,
+          errorMessage: err.message,
+          fileName: file.name,
+          fileId: file.id
+        })
       }
     }
 
+    clearInterval(textInterval)
     setReels(generatedReels)
+    setAnalyzing(false)
+    setCurrentAnalyzing(null)
   }
 
   const copyToClipboard = (text) => {
@@ -509,76 +214,39 @@ function MediaUpload() {
     alert('Copiato!')
   }
 
-  const resetUpload = () => {
+  const resetAll = () => {
     setFiles([])
     setReels([])
-    setUploadProgress([])
     setError(null)
-    setSeriesTitle('')
+    setAnalyzing(false)
+    setCurrentAnalyzing(null)
   }
 
   return (
     <div className="card">
       <h2 style={{fontSize: '1.8rem', marginBottom: '20px', color: '#333'}}>Carica Video o Foto</h2>
 
-      {files.length === 0 && (
-        <>
-          <TemplateManager 
-            selectedTemplate={selectedTemplate}
-            onSelectTemplate={setSelectedTemplate}
+      {files.length === 0 && !analyzing && (
+        <div>
+          <input
+            type="file"
+            accept="image/*,video/*"
+            multiple
+            onChange={handleFileChange}
+            style={{display: 'none'}}
+            id="fileInput"
+            disabled={processing}
           />
-
-          <div className="form-group" style={{marginBottom: '20px'}}>
-            <label>Titolo Serie (opzionale)</label>
-            <input
-              type="text"
-              placeholder='Es: "Trasformazione Marco" o "Allenamento Upper Body"'
-              value={seriesTitle}
-              onChange={(e) => setSeriesTitle(e.target.value)}
-            />
-          </div>
-
-          <div className="form-group" style={{marginBottom: '25px'}}>
-            <label>Durata massima per reel: {chunkDuration} secondi</label>
-            <input
-              type="range"
-              min="30"
-              max="90"
-              step="10"
-              value={chunkDuration}
-              onChange={(e) => setChunkDuration(parseInt(e.target.value))}
-              style={{width: '100%'}}
-            />
-            <div style={{display: 'flex', justifyContent: 'space-between', fontSize: '0.85rem', color: '#999', marginTop: '5px'}}>
-              <span>30s</span>
-              <span>60s</span>
-              <span>90s</span>
-            </div>
-          </div>
-
-          <div
-            onDrop={handleDrop}
-            onDragOver={(e) => e.preventDefault()}
-            style={{
+          <label htmlFor="fileInput">
+            <div style={{
               border: '4px dashed #ccc',
               borderRadius: '15px',
               padding: '50px',
               textAlign: 'center',
-              cursor: 'pointer',
+              cursor: processing ? 'wait' : 'pointer',
               transition: 'all 0.3s',
               background: '#f8f9ff'
-            }}
-          >
-            <input
-              type="file"
-              accept="image/*,video/*"
-              multiple
-              onChange={handleFileChange}
-              style={{display: 'none'}}
-              id="fileInput"
-              disabled={processing}
-            />
-            <label htmlFor="fileInput" style={{cursor: processing ? 'wait' : 'pointer'}}>
+            }}>
               {processing ? (
                 <div>
                   <div className="spinner" style={{margin: '20px auto'}}></div>
@@ -589,14 +257,138 @@ function MediaUpload() {
                   <p style={{fontSize: '1.5rem', marginBottom: '10px'}}>Trascina qui i files</p>
                   <p style={{color: '#999'}}>oppure clicca per selezionare</p>
                   <p style={{fontSize: '0.85rem', color: '#bbb', marginTop: '10px'}}>
-                    Max 10 files - Immagini: JPG, PNG<br/>
-                    Video: MP4 (split automatico se &gt; {chunkDuration}s)
+                    Max 10 files - Immagini: JPG, PNG - Video: MP4
                   </p>
                 </div>
               )}
+            </div>
+          </label>
+        </div>
+      )}
+
+      {files.length > 0 && !analyzing && reels.length === 0 && (
+        <div>
+          <div style={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))',
+            gap: '15px',
+            marginBottom: '25px'
+          }}>
+            {files.map(file => (
+              <div key={file.id} style={{
+                position: 'relative',
+                borderRadius: '12px',
+                overflow: 'hidden',
+                border: '2px solid #e0e0e0',
+                background: 'white'
+              }}>
+                {file.isVideo ? (
+                  <video 
+                    src={file.preview} 
+                    style={{width: '100%', height: '150px', objectFit: 'cover'}}
+                  />
+                ) : (
+                  <img 
+                    src={file.preview} 
+                    alt={file.name}
+                    style={{width: '100%', height: '150px', objectFit: 'cover'}}
+                  />
+                )}
+                <div style={{
+                  padding: '8px',
+                  fontSize: '0.75rem',
+                  color: '#666',
+                  whiteSpace: 'nowrap',
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis'
+                }}>
+                  {file.name}
+                </div>
+                <button
+                  onClick={() => removeFile(file.id)}
+                  style={{
+                    position: 'absolute',
+                    top: '5px',
+                    right: '5px',
+                    background: 'rgba(0,0,0,0.7)',
+                    color: 'white',
+                    border: 'none',
+                    borderRadius: '50%',
+                    width: '30px',
+                    height: '30px',
+                    cursor: 'pointer',
+                    fontSize: '1.2rem',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center'
+                  }}
+                >
+                  ×
+                </button>
+              </div>
+            ))}
+            
+            <label htmlFor="fileInputAdd" style={{
+              border: '2px dashed #667eea',
+              borderRadius: '12px',
+              height: '150px',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              cursor: 'pointer',
+              background: '#f8f9ff',
+              fontSize: '2rem',
+              color: '#667eea'
+            }}>
+              +
             </label>
+            <input
+              type="file"
+              accept="image/*,video/*"
+              multiple
+              onChange={handleFileChange}
+              style={{display: 'none'}}
+              id="fileInputAdd"
+              disabled={processing}
+            />
           </div>
-        </>
+
+          <button
+            onClick={handleGenerateReels}
+            className="btn"
+            style={{width: '100%', marginBottom: '10px'}}
+          >
+            Genera {files.length} Reel
+          </button>
+
+          <button
+            onClick={resetAll}
+            style={{
+              width: '100%',
+              background: '#f5f5f5',
+              color: '#666',
+              border: 'none',
+              padding: '15px',
+              borderRadius: '10px',
+              cursor: 'pointer',
+              fontWeight: '600'
+            }}
+          >
+            Reset
+          </button>
+        </div>
+      )}
+
+      {analyzing && (
+        <div style={{textAlign: 'center', padding: '40px'}}>
+          <div className="spinner" style={{margin: '20px auto'}}></div>
+          <p style={{color: '#667eea', fontWeight: '600', fontSize: '1.2rem', marginBottom: '10px'}}>
+            {loadingText}
+          </p>
+          <p style={{color: '#999', fontSize: '0.9rem'}}>
+            File {currentAnalyzing + 1} di {files.length}
+          </p>
+        </div>
       )}
 
       {error && (
@@ -612,96 +404,6 @@ function MediaUpload() {
         </div>
       )}
 
-      {uploadProgress.length > 0 && (
-        <div style={{marginTop: '25px'}}>
-          <h3 style={{fontSize: '1.2rem', marginBottom: '15px', color: '#333'}}>
-            Progress Upload
-          </h3>
-          {uploadProgress.map((progress, i) => (
-            <div key={i} style={{
-              padding: '12px',
-              background: '#f8f9ff',
-              borderRadius: '10px',
-              marginBottom: '10px',
-              border: '2px solid #e0e0e0'
-            }}>
-              <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center'}}>
-                <span style={{fontSize: '0.9rem', color: '#333', fontWeight: '500'}}>
-                  {progress.name}
-                </span>
-                <span style={{
-                  fontSize: '0.85rem',
-                  padding: '4px 10px',
-                  borderRadius: '6px',
-                  fontWeight: '600',
-                  background: 
-                    progress.status === 'done' ? '#4caf50' :
-                    progress.status === 'error' ? '#f44336' :
-                    progress.status === 'analyzing' ? '#2196f3' :
-                    progress.status === 'uploading' ? '#ff9800' :
-                    progress.status === 'processing' ? '#9c27b0' :
-                    '#ccc',
-                  color: 'white'
-                }}>
-                  {progress.status === 'done' ? 'Completato' :
-                   progress.status === 'error' ? 'Errore' :
-                   progress.status === 'analyzing' ? 'Analisi AI' :
-                   progress.status === 'uploading' ? 'Upload' :
-                   progress.status === 'processing' ? 'Elaborazione' :
-                   'In attesa'}
-                </span>
-              </div>
-              {progress.error && (
-                <div style={{fontSize: '0.8rem', color: '#c62828', marginTop: '5px'}}>
-                  {progress.error}
-                </div>
-              )}
-            </div>
-          ))}
-        </div>
-      )}
-
-      {files.length > 0 && reels.length === 0 && !processing && (
-        <div style={{marginTop: '25px'}}>
-          <div style={{
-            padding: '15px',
-            background: '#e3f2fd',
-            borderRadius: '10px',
-            marginBottom: '20px',
-            border: '2px solid #2196f3'
-          }}>
-            <strong>Files pronti:</strong> {files.length} {files.length > 1 ? 'reel' : 'media'}
-            {seriesTitle && <div style={{marginTop: '5px'}}>Serie: <strong>{seriesTitle}</strong></div>}
-            {selectedTemplate && <div style={{marginTop: '5px'}}>Template: <strong>{selectedTemplate.name}</strong></div>}
-          </div>
-
-          <button
-            onClick={handleUploadAndAnalyze}
-            className="btn"
-            style={{width: '100%', marginBottom: '10px'}}
-          >
-            Analizza e Genera Reel
-          </button>
-
-          <button
-            onClick={resetUpload}
-            style={{
-              width: '100%',
-              background: '#f5f5f5',
-              color: '#666',
-              border: 'none',
-              padding: '15px',
-              borderRadius: '10px',
-              cursor: 'pointer',
-              fontWeight: '600',
-              fontSize: '1rem'
-            }}
-          >
-            Reset
-          </button>
-        </div>
-      )}
-
       {reels.length > 0 && (
         <div style={{marginTop: '30px'}}>
           <h3 style={{fontSize: '1.5rem', marginBottom: '20px', color: '#333'}}>
@@ -713,13 +415,13 @@ function MediaUpload() {
             overflowY: 'auto',
             paddingRight: '10px'
           }}>
-            {reels.map((reel, reelIdx) => (
-              <div key={reelIdx} style={{
+            {reels.map((reel, idx) => (
+              <div key={idx} style={{
                 marginBottom: '30px',
                 padding: '25px',
                 background: 'white',
                 borderRadius: '15px',
-                border: '3px solid #667eea',
+                border: reel.error ? '3px solid #f44336' : '3px solid #667eea',
                 boxShadow: '0 5px 20px rgba(0,0,0,0.1)'
               }}>
                 <div style={{
@@ -730,109 +432,105 @@ function MediaUpload() {
                   paddingBottom: '15px',
                   borderBottom: '2px solid #e0e0e0'
                 }}>
-                  <div>
-                    <h4 style={{fontSize: '1.3rem', fontWeight: '700', color: '#333', marginBottom: '5px'}}>
-                      {reel.reelTitle}
-                    </h4>
-                    {reel.chunkInfo && (
-                      <span style={{
-                        fontSize: '0.85rem',
-                        color: '#666',
-                        background: '#f0f0f0',
-                        padding: '4px 10px',
-                        borderRadius: '6px'
-                      }}>
-                        {reel.chunkInfo}
-                      </span>
-                    )}
-                  </div>
-                  <div style={{
-                    fontSize: '0.9rem',
-                    color: '#999',
-                    textAlign: 'right'
-                  }}>
+                  <h4 style={{fontSize: '1.3rem', fontWeight: '700', color: '#333'}}>
+                    Reel {idx + 1}
+                  </h4>
+                  <div style={{fontSize: '0.9rem', color: '#999'}}>
                     {reel.fileName}
                   </div>
                 </div>
 
-                <div style={{
-                  background: '#e3f2fd',
-                  padding: '15px',
-                  borderRadius: '10px',
-                  marginBottom: '20px',
-                  border: '2px solid #2196f3'
-                }}>
-                  <strong>Descrizione:</strong> {reel.description}
-                </div>
-
-                {reel.variants?.map((variant, varIdx) => (
-                  <div key={varIdx} style={{
-                    background: '#fafafa',
+                {reel.error ? (
+                  <div style={{
                     padding: '20px',
-                    borderRadius: '12px',
-                    marginBottom: '15px',
-                    border: '2px solid #e0e0e0'
+                    background: '#ffebee',
+                    borderRadius: '10px',
+                    color: '#c62828'
                   }}>
-                    <div style={{
-                      display: 'flex',
-                      justifyContent: 'space-between',
-                      alignItems: 'center',
-                      marginBottom: '15px'
-                    }}>
-                      <h5 style={{
-                        fontSize: '1.1rem',
-                        fontWeight: '700',
-                        textTransform: 'capitalize',
-                        color: '#333'
-                      }}>
-                        {variant.type}
-                      </h5>
-                      <button
-                        onClick={() => copyToClipboard(`${reel.reelTitle}\n\n${variant.caption}\n\n${variant.hashtags.join(' ')}\n\n${variant.cta}`)}
-                        style={{
-                          background: '#4caf50',
-                          color: 'white',
-                          border: 'none',
-                          padding: '10px 20px',
-                          borderRadius: '8px',
-                          cursor: 'pointer',
-                          fontWeight: '600',
-                          fontSize: '0.9rem'
-                        }}
-                      >
-                        Copia
-                      </button>
-                    </div>
-                    <p style={{
-                      marginBottom: '15px',
-                      whiteSpace: 'pre-wrap',
-                      lineHeight: '1.6',
-                      color: '#333'
-                    }}>
-                      {variant.caption}
-                    </p>
-                    <p style={{
-                      fontSize: '0.9rem',
-                      color: '#2196f3',
-                      marginBottom: '10px'
-                    }}>
-                      {variant.hashtags.join(' ')}
-                    </p>
-                    <p style={{
-                      fontSize: '0.9rem',
-                      fontWeight: '700',
-                      color: '#9c27b0'
-                    }}>
-                      {variant.cta}
-                    </p>
+                    <strong>Errore:</strong> {reel.errorMessage}
                   </div>
-                ))}
+                ) : (
+                  <>
+                    <div style={{
+                      background: '#e3f2fd',
+                      padding: '15px',
+                      borderRadius: '10px',
+                      marginBottom: '20px',
+                      border: '2px solid #2196f3'
+                    }}>
+                      <strong>Descrizione:</strong> {reel.description}
+                    </div>
+
+                    {reel.variants?.map((variant, varIdx) => (
+                      <div key={varIdx} style={{
+                        background: '#fafafa',
+                        padding: '20px',
+                        borderRadius: '12px',
+                        marginBottom: '15px',
+                        border: '2px solid #e0e0e0'
+                      }}>
+                        <div style={{
+                          display: 'flex',
+                          justifyContent: 'space-between',
+                          alignItems: 'center',
+                          marginBottom: '15px'
+                        }}>
+                          <h5 style={{
+                            fontSize: '1.1rem',
+                            fontWeight: '700',
+                            textTransform: 'capitalize',
+                            color: '#333'
+                          }}>
+                            {variant.type}
+                          </h5>
+                          <button
+                            onClick={() => copyToClipboard(`${variant.caption}\n\n${variant.hashtags.join(' ')}\n\n${variant.cta}`)}
+                            style={{
+                              background: '#4caf50',
+                              color: 'white',
+                              border: 'none',
+                              padding: '10px 20px',
+                              borderRadius: '8px',
+                              cursor: 'pointer',
+                              fontWeight: '600',
+                              fontSize: '0.9rem'
+                            }}
+                          >
+                            Copia
+                          </button>
+                        </div>
+                        <p style={{
+                          marginBottom: '15px',
+                          whiteSpace: 'pre-wrap',
+                          lineHeight: '1.6',
+                          color: '#333'
+                        }}>
+                          {variant.caption}
+                        </p>
+                        <p style={{
+                          fontSize: '0.9rem',
+                          color: '#2196f3',
+                          marginBottom: '10px'
+                        }}>
+                          {variant.hashtags.join(' ')}
+                        </p>
+                        <p style={{
+                          fontSize: '0.9rem',
+                          fontWeight: '700',
+                          color: '#9c27b0'
+                        }}>
+                          {variant.cta}
+                        </p>
+                      </div>
+                    ))}
+                  </>
+                )}
               </div>
             ))}
           </div>
 
           <button
-            onClick={resetUpload}
+            onClick={resetAll}
             style={{
               width: '100%',
               background: '#f5f5f5',
