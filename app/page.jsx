@@ -7,11 +7,46 @@ import imageCompression from 'browser-image-compression'
 function MediaUpload() {
   const [file, setFile] = useState(null)
   const [preview, setPreview] = useState(null)
+  const [videoFile, setVideoFile] = useState(null)
   const [compressing, setCompressing] = useState(false)
+  const [extractingFrame, setExtractingFrame] = useState(false)
   const [uploading, setUploading] = useState(false)
   const [analyzing, setAnalyzing] = useState(false)
   const [results, setResults] = useState(null)
   const [error, setError] = useState(null)
+
+  const extractVideoFrame = (videoFile) => {
+    return new Promise((resolve, reject) => {
+      const video = document.createElement('video')
+      video.preload = 'metadata'
+      video.muted = true
+      
+      video.onloadeddata = () => {
+        video.currentTime = 1
+      }
+      
+      video.onseeked = () => {
+        const canvas = document.createElement('canvas')
+        canvas.width = video.videoWidth
+        canvas.height = video.videoHeight
+        
+        const ctx = canvas.getContext('2d')
+        ctx.drawImage(video, 0, 0, canvas.width, canvas.height)
+        
+        canvas.toBlob((blob) => {
+          if (blob) {
+            const frameFile = new File([blob], 'video-frame.jpg', { type: 'image/jpeg' })
+            resolve(frameFile)
+          } else {
+            reject(new Error('Impossibile estrarre frame'))
+          }
+        }, 'image/jpeg', 0.9)
+      }
+      
+      video.onerror = () => reject(new Error('Errore nel caricamento video'))
+      video.src = URL.createObjectURL(videoFile)
+    })
+  }
 
   const handleFileChange = async (e) => {
     const selectedFile = e.target.files[0]
@@ -30,8 +65,8 @@ function MediaUpload() {
 
   const processFile = async (selectedFile) => {
     setError(null)
+    setResults(null)
 
-    // Check tipo file
     const isImage = selectedFile.type.startsWith('image')
     const isVideo = selectedFile.type.startsWith('video')
 
@@ -40,21 +75,44 @@ function MediaUpload() {
       return
     }
 
-    // Video: limite 20MB
     if (isVideo) {
-      const maxVideoSize = 20 * 1024 * 1024
+      const maxVideoSize = 100 * 1024 * 1024
       if (selectedFile.size > maxVideoSize) {
-        setError('Video troppo grande (max 20MB). Comprimi il video prima di caricarlo.')
+        setError('Video troppo grande (max 100MB)')
         return
       }
-      setFile(selectedFile)
+
+      setVideoFile(selectedFile)
       const reader = new FileReader()
       reader.onload = (e) => setPreview(e.target.result)
       reader.readAsDataURL(selectedFile)
+
+      try {
+        setExtractingFrame(true)
+        const frameFile = await extractVideoFrame(selectedFile)
+        
+        setCompressing(true)
+        setExtractingFrame(false)
+        
+        const options = {
+          maxSizeMB: 1,
+          maxWidthOrHeight: 1920,
+          useWebWorker: true,
+          fileType: 'image/jpeg'
+        }
+        
+        const compressedFrame = await imageCompression(frameFile, options)
+        setFile(compressedFrame)
+        setCompressing(false)
+        
+      } catch (err) {
+        setError('Errore elaborazione video: ' + err.message)
+        setExtractingFrame(false)
+        setCompressing(false)
+      }
       return
     }
 
-    // Immagine: comprimi automaticamente
     if (isImage) {
       setCompressing(true)
       try {
@@ -66,15 +124,15 @@ function MediaUpload() {
         }
         
         const compressedFile = await imageCompression(selectedFile, options)
-        
         setFile(compressedFile)
+        
         const reader = new FileReader()
         reader.onload = (e) => setPreview(e.target.result)
         reader.readAsDataURL(compressedFile)
         
         setCompressing(false)
       } catch (err) {
-        setError('Errore durante la compressione: ' + err.message)
+        setError('Errore compressione: ' + err.message)
         setCompressing(false)
       }
     }
@@ -109,7 +167,7 @@ function MediaUpload() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           mediaUrl: uploadData.url,
-          mediaType: uploadData.type,
+          mediaType: 'image',
         }),
       })
 
@@ -157,22 +215,29 @@ function MediaUpload() {
           onChange={handleFileChange}
           style={{display: 'none'}}
           id="fileInput"
+          disabled={compressing || extractingFrame}
         />
-        <label htmlFor="fileInput" style={{cursor: 'pointer'}}>
-          {compressing ? (
+        <label htmlFor="fileInput" style={{cursor: compressing || extractingFrame ? 'wait' : 'pointer'}}>
+          {extractingFrame ? (
             <div>
               <div className="spinner" style={{margin: '20px auto'}}></div>
-              <p style={{color: '#667eea', fontWeight: '600'}}>Compressione immagine...</p>
+              <p style={{color: '#667eea', fontWeight: '600'}}>Estrazione frame dal video...</p>
+            </div>
+          ) : compressing ? (
+            <div>
+              <div className="spinner" style={{margin: '20px auto'}}></div>
+              <p style={{color: '#667eea', fontWeight: '600'}}>Compressione...</p>
             </div>
           ) : preview ? (
             <div>
-              {file?.type.startsWith('video') ? (
+              {videoFile ? (
                 <video src={preview} controls style={{maxHeight: '250px', margin: '0 auto', borderRadius: '10px'}} />
               ) : (
                 <img src={preview} alt="Preview" style={{maxHeight: '250px', margin: '0 auto', borderRadius: '10px'}} />
               )}
               <p style={{marginTop: '15px', fontSize: '0.9rem', color: '#666'}}>
-                {file?.name} ({(file?.size / 1024 / 1024).toFixed(2)} MB)
+                {videoFile ? videoFile.name : file?.name}
+                {file && ` (Frame estratto: ${(file.size / 1024 / 1024).toFixed(2)} MB)`}
               </p>
             </div>
           ) : (
@@ -180,8 +245,8 @@ function MediaUpload() {
               <p style={{fontSize: '1.5rem', marginBottom: '10px'}}>Trascina qui il file</p>
               <p style={{color: '#999'}}>oppure clicca per selezionare</p>
               <p style={{fontSize: '0.85rem', color: '#bbb', marginTop: '10px'}}>
-                Immagini: JPG, PNG (compressione automatica)<br/>
-                Video: MP4 max 20MB
+                Immagini: JPG, PNG<br/>
+                Video: MP4 (estrazione automatica frame)
               </p>
             </div>
           )}
@@ -201,7 +266,7 @@ function MediaUpload() {
         </div>
       )}
 
-      {file && !results && !compressing && (
+      {file && !results && !compressing && !extractingFrame && (
         <button
           onClick={handleUploadAndAnalyze}
           disabled={uploading || analyzing}
@@ -295,6 +360,7 @@ function MediaUpload() {
           <button
             onClick={() => {
               setFile(null)
+              setVideoFile(null)
               setPreview(null)
               setResults(null)
               setError(null)
