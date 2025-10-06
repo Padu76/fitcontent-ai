@@ -1,5 +1,5 @@
-import { generatePosts } from '@/lib/openai'
-import { supabase } from '@/lib/supabase'
+import { generatePosts } from '../../../lib/openai.js'
+import { supabase } from '../../../lib/supabase.js'
 import { NextResponse } from 'next/server'
 
 export async function POST(request) {
