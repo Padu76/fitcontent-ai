@@ -50,7 +50,7 @@ function InstagramPreview({ isOpen, onClose, variant, preview, fileName }) {
         {/* Immagine/Video */}
         {preview && (
           <div style={{background: '#000', width: '100%'}}>
-            {fileName?.toLowerCase().includes('.mp4') || fileName?.toLowerCase().includes('.mov') ? (
+            {preview.includes('blob:') && fileName?.match(/\.(mp4|mov|avi|webm)$/i) ? (
               <video src={preview} controls style={{width: '100%', maxHeight: '500px', objectFit: 'contain', display: 'block'}} />
             ) : (
               <img src={preview} alt="Preview" style={{width: '100%', maxHeight: '500px', objectFit: 'contain', display: 'block'}} />
@@ -287,7 +287,14 @@ function MediaUpload() {
           ...analyzeData.data,
           preview: file.preview,
           fileName: file.name,
-          fileId: file.id
+          fileId: file.id,
+          isVideo: file.isVideo
+        })
+
+        console.log('Reel generato:', {
+          fileName: file.name,
+          preview: file.preview,
+          isVideo: file.isVideo
         })
 
       } catch (err) {
