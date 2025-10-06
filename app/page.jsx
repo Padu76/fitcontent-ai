@@ -311,6 +311,28 @@ function MediaUpload() {
     alert('Copiato!')
   }
 
+  const shareToInstagram = async (text) => {
+    // Copia nel clipboard
+    await navigator.clipboard.writeText(text)
+    
+    // Check se supporta Web Share API (mobile)
+    if (navigator.share) {
+      try {
+        await navigator.share({
+          text: text,
+          title: 'Condividi su Instagram'
+        })
+      } catch (err) {
+        if (err.name !== 'AbortError') {
+          alert('Testo copiato! Apri Instagram e incolla nel tuo post.')
+        }
+      }
+    } else {
+      // Desktop fallback
+      alert('✅ Testo copiato!\n\n📱 Apri Instagram sul tuo telefono e incolla nel nuovo post.')
+    }
+  }
+
   const openPreview = (variant, preview, fileName) => {
     setPreviewModal({ isOpen: true, variant, preview, fileName })
   }
