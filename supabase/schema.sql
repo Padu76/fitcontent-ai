@@ -5,7 +5,7 @@ create table posts (
   user_id uuid references auth.users,
   description text not null,
   content_type text not null,
-  post_type text not null, -- motivational, educational, promotional
+  post_type text not null,
   caption text not null,
   hashtags text not null,
   cta text not null,
@@ -13,11 +13,9 @@ create table posts (
   saved boolean default false
 );
 
--- Indice per performance
 create index posts_user_id_idx on posts(user_id);
 create index posts_created_at_idx on posts(created_at desc);
 
--- Row Level Security
 alter table posts enable row level security;
 
 create policy "Users can view own posts"

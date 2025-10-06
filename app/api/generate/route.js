@@ -1,4 +1,3 @@
-
 import { generatePosts } from '@/lib/openai'
 import { supabase } from '@/lib/supabase'
 import { NextResponse } from 'next/server'
