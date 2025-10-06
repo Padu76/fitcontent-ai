@@ -3,26 +3,25 @@
 import { useState } from 'react'
 import imageCompression from 'browser-image-compression'
 
-// Componente MediaUpload integrato
+// Componente MediaUpload con multi-upload e split video
 function MediaUpload() {
-  const [file, setFile] = useState(null)
-  const [preview, setPreview] = useState(null)
-  const [videoFile, setVideoFile] = useState(null)
-  const [compressing, setCompressing] = useState(false)
-  const [extractingFrame, setExtractingFrame] = useState(false)
-  const [uploading, setUploading] = useState(false)
-  const [analyzing, setAnalyzing] = useState(false)
-  const [results, setResults] = useState(null)
+  const [files, setFiles] = useState([])
+  const [seriesTitle, setSeriesTitle] = useState('')
+  const [chunkDuration, setChunkDuration] = useState(90)
+  const [processing, setProcessing] = useState(false)
+  const [uploadProgress, setUploadProgress] = useState([])
+  const [reels, setReels] = useState([])
   const [error, setError] = useState(null)
 
-  const extractVideoFrame = (videoFile) => {
+  // Estrai frame da video a un determinato timestamp
+  const extractVideoFrame = (videoFile, timestamp = 1) => {
     return new Promise((resolve, reject) => {
       const video = document.createElement('video')
       video.preload = 'metadata'
       video.muted = true
       
       video.onloadeddata = () => {
-        video.currentTime = 1
+        video.currentTime = Math.min(timestamp, video.duration - 0.1)
       }
       
       video.onseeked = () => {
@@ -48,51 +47,65 @@ function MediaUpload() {
     })
   }
 
-  const handleFileChange = async (e) => {
-    const selectedFile = e.target.files[0]
-    if (selectedFile) {
-      await processFile(selectedFile)
-    }
+  // Ottieni durata video
+  const getVideoDuration = (videoFile) => {
+    return new Promise((resolve, reject) => {
+      const video = document.createElement('video')
+      video.preload = 'metadata'
+      video.muted = true
+      
+      video.onloadedmetadata = () => {
+        resolve(video.duration)
+      }
+      
+      video.onerror = () => reject(new Error('Impossibile leggere durata video'))
+      video.src = URL.createObjectURL(videoFile)
+    })
   }
 
-  const handleDrop = async (e) => {
-    e.preventDefault()
-    const droppedFile = e.dataTransfer.files[0]
-    if (droppedFile) {
-      await processFile(droppedFile)
-    }
-  }
-
-  const processFile = async (selectedFile) => {
-    setError(null)
-    setResults(null)
-
-    const isImage = selectedFile.type.startsWith('image')
-    const isVideo = selectedFile.type.startsWith('video')
+  // Processa singolo file
+  const processFile = async (file) => {
+    const isImage = file.type.startsWith('image')
+    const isVideo = file.type.startsWith('video')
 
     if (!isImage && !isVideo) {
-      setError('Formato non supportato. Usa JPG, PNG o MP4')
-      return
+      throw new Error('Formato non supportato')
     }
 
     if (isVideo) {
       const maxVideoSize = 100 * 1024 * 1024
-      if (selectedFile.size > maxVideoSize) {
-        setError('Video troppo grande (max 100MB)')
-        return
+      if (file.size > maxVideoSize) {
+        throw new Error('Video troppo grande (max 100MB)')
       }
 
-      setVideoFile(selectedFile)
-      const reader = new FileReader()
-      reader.onload = (e) => setPreview(e.target.result)
-      reader.readAsDataURL(selectedFile)
+      const duration = await getVideoDuration(file)
+      const chunks = []
 
-      try {
-        setExtractingFrame(true)
-        const frameFile = await extractVideoFrame(selectedFile)
-        
-        setCompressing(true)
-        setExtractingFrame(false)
+      // Se video è più lungo del chunk, dividi
+      if (duration > chunkDuration) {
+        const numChunks = Math.ceil(duration / chunkDuration)
+        for (let i = 0; i < numChunks; i++) {
+          const timestamp = i * chunkDuration + 1
+          chunks.push({
+            chunkIndex: i,
+            totalChunks: numChunks,
+            timestamp,
+            duration: Math.min(chunkDuration, duration - i * chunkDuration)
+          })
+        }
+      } else {
+        chunks.push({
+          chunkIndex: 0,
+          totalChunks: 1,
+          timestamp: 1,
+          duration
+        })
+      }
+
+      // Estrai frame da ogni chunk
+      const processedChunks = []
+      for (const chunk of chunks) {
+        const frameFile = await extractVideoFrame(file, chunk.timestamp)
         
         const options = {
           maxSizeMB: 1,
@@ -102,89 +115,171 @@ function MediaUpload() {
         }
         
         const compressedFrame = await imageCompression(frameFile, options)
-        setFile(compressedFrame)
-        setCompressing(false)
         
-      } catch (err) {
-        setError('Errore elaborazione video: ' + err.message)
-        setExtractingFrame(false)
-        setCompressing(false)
+        processedChunks.push({
+          ...chunk,
+          frame: compressedFrame,
+          originalFile: file,
+          preview: URL.createObjectURL(file)
+        })
       }
-      return
+
+      return processedChunks
     }
 
-    if (isImage) {
-      setCompressing(true)
-      try {
-        const options = {
-          maxSizeMB: 1,
-          maxWidthOrHeight: 1920,
-          useWebWorker: true,
-          fileType: selectedFile.type
+    // Immagine
+    const options = {
+      maxSizeMB: 1,
+      maxWidthOrHeight: 1920,
+      useWebWorker: true,
+      fileType: file.type
+    }
+    
+    const compressedFile = await imageCompression(file, options)
+    
+    return [{
+      chunkIndex: 0,
+      totalChunks: 1,
+      frame: compressedFile,
+      originalFile: file,
+      preview: URL.createObjectURL(compressedFile),
+      timestamp: 0,
+      duration: 0
+    }]
+  }
+
+  const handleFileChange = async (e) => {
+    const selectedFiles = Array.from(e.target.files).slice(0, 10)
+    if (selectedFiles.length > 0) {
+      await processFiles(selectedFiles)
+    }
+  }
+
+  const handleDrop = async (e) => {
+    e.preventDefault()
+    const droppedFiles = Array.from(e.dataTransfer.files).slice(0, 10)
+    if (droppedFiles.length > 0) {
+      await processFiles(droppedFiles)
+    }
+  }
+
+  const processFiles = async (selectedFiles) => {
+    setError(null)
+    setReels([])
+    setProcessing(true)
+    setUploadProgress([])
+
+    const allChunks = []
+
+    try {
+      for (let i = 0; i < selectedFiles.length; i++) {
+        setUploadProgress(prev => [...prev, { index: i, status: 'processing', name: selectedFiles[i].name }])
+        
+        try {
+          const chunks = await processFile(selectedFiles[i])
+          allChunks.push(...chunks.map(chunk => ({
+            ...chunk,
+            fileIndex: i,
+            fileName: selectedFiles[i].name
+          })))
+          
+          setUploadProgress(prev => prev.map((p, idx) => 
+            idx === i ? { ...p, status: 'ready' } : p
+          ))
+        } catch (err) {
+          setUploadProgress(prev => prev.map((p, idx) => 
+            idx === i ? { ...p, status: 'error', error: err.message } : p
+          ))
         }
-        
-        const compressedFile = await imageCompression(selectedFile, options)
-        setFile(compressedFile)
-        
-        const reader = new FileReader()
-        reader.onload = (e) => setPreview(e.target.result)
-        reader.readAsDataURL(compressedFile)
-        
-        setCompressing(false)
-      } catch (err) {
-        setError('Errore compressione: ' + err.message)
-        setCompressing(false)
       }
+
+      setFiles(allChunks)
+      setProcessing(false)
+
+    } catch (err) {
+      setError('Errore durante elaborazione: ' + err.message)
+      setProcessing(false)
     }
   }
 
   const handleUploadAndAnalyze = async () => {
-    if (!file) return
+    if (files.length === 0) return
 
-    try {
-      setUploading(true)
-      setError(null)
+    setError(null)
+    const generatedReels = []
 
-      const formData = new FormData()
-      formData.append('file', file)
+    for (let i = 0; i < files.length; i++) {
+      const fileChunk = files[i]
+      
+      setUploadProgress(prev => prev.map((p, idx) => 
+        idx === fileChunk.fileIndex ? { ...p, status: 'uploading' } : p
+      ))
 
-      const uploadRes = await fetch('/api/upload', {
-        method: 'POST',
-        body: formData,
-      })
+      try {
+        // Upload frame
+        const formData = new FormData()
+        formData.append('file', fileChunk.frame)
 
-      const uploadData = await uploadRes.json()
+        const uploadRes = await fetch('/api/upload', {
+          method: 'POST',
+          body: formData,
+        })
 
-      if (!uploadData.success) {
-        throw new Error(uploadData.error)
+        const uploadData = await uploadRes.json()
+
+        if (!uploadData.success) {
+          throw new Error(uploadData.error)
+        }
+
+        setUploadProgress(prev => prev.map((p, idx) => 
+          idx === fileChunk.fileIndex ? { ...p, status: 'analyzing' } : p
+        ))
+
+        // Analisi
+        const analyzeRes = await fetch('/api/analyze', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            mediaUrl: uploadData.url,
+            mediaType: 'image',
+          }),
+        })
+
+        const analyzeData = await analyzeRes.json()
+
+        if (!analyzeData.success) {
+          throw new Error(analyzeData.error)
+        }
+
+        // Aggiungi info reel
+        const reelNumber = i + 1
+        const totalReels = files.length
+        const reelTitle = seriesTitle 
+          ? `${seriesTitle} - Reel ${reelNumber} di ${totalReels}`
+          : `Reel ${reelNumber} di ${totalReels}`
+
+        generatedReels.push({
+          ...analyzeData.data,
+          reelNumber,
+          totalReels,
+          reelTitle,
+          preview: fileChunk.preview,
+          fileName: fileChunk.fileName,
+          chunkInfo: fileChunk.totalChunks > 1 ? `Parte ${fileChunk.chunkIndex + 1}/${fileChunk.totalChunks}` : null
+        })
+
+        setUploadProgress(prev => prev.map((p, idx) => 
+          idx === fileChunk.fileIndex ? { ...p, status: 'done' } : p
+        ))
+
+      } catch (err) {
+        setUploadProgress(prev => prev.map((p, idx) => 
+          idx === fileChunk.fileIndex ? { ...p, status: 'error', error: err.message } : p
+        ))
       }
-
-      setUploading(false)
-      setAnalyzing(true)
-
-      const analyzeRes = await fetch('/api/analyze', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          mediaUrl: uploadData.url,
-          mediaType: 'image',
-        }),
-      })
-
-      const analyzeData = await analyzeRes.json()
-
-      if (!analyzeData.success) {
-        throw new Error(analyzeData.error)
-      }
-
-      setResults(analyzeData.data)
-      setAnalyzing(false)
-
-    } catch (err) {
-      setError(err.message)
-      setUploading(false)
-      setAnalyzing(false)
     }
+
+    setReels(generatedReels)
   }
 
   const copyToClipboard = (text) => {
@@ -192,66 +287,90 @@ function MediaUpload() {
     alert('Copiato!')
   }
 
+  const resetUpload = () => {
+    setFiles([])
+    setReels([])
+    setUploadProgress([])
+    setError(null)
+    setSeriesTitle('')
+  }
+
   return (
     <div className="card">
       <h2 style={{fontSize: '1.8rem', marginBottom: '20px', color: '#333'}}>Carica Video o Foto</h2>
 
-      <div
-        onDrop={handleDrop}
-        onDragOver={(e) => e.preventDefault()}
-        style={{
-          border: '4px dashed #ccc',
-          borderRadius: '15px',
-          padding: '50px',
-          textAlign: 'center',
-          cursor: 'pointer',
-          transition: 'all 0.3s',
-          background: '#f8f9ff'
-        }}
-      >
-        <input
-          type="file"
-          accept="image/*,video/*"
-          onChange={handleFileChange}
-          style={{display: 'none'}}
-          id="fileInput"
-          disabled={compressing || extractingFrame}
-        />
-        <label htmlFor="fileInput" style={{cursor: compressing || extractingFrame ? 'wait' : 'pointer'}}>
-          {extractingFrame ? (
-            <div>
-              <div className="spinner" style={{margin: '20px auto'}}></div>
-              <p style={{color: '#667eea', fontWeight: '600'}}>Estrazione frame dal video...</p>
+      {files.length === 0 && (
+        <>
+          <div className="form-group" style={{marginBottom: '20px'}}>
+            <label>Titolo Serie (opzionale)</label>
+            <input
+              type="text"
+              placeholder='Es: "Trasformazione Marco" o "Allenamento Upper Body"'
+              value={seriesTitle}
+              onChange={(e) => setSeriesTitle(e.target.value)}
+            />
+          </div>
+
+          <div className="form-group" style={{marginBottom: '25px'}}>
+            <label>Durata massima per reel: {chunkDuration} secondi</label>
+            <input
+              type="range"
+              min="30"
+              max="90"
+              step="10"
+              value={chunkDuration}
+              onChange={(e) => setChunkDuration(parseInt(e.target.value))}
+              style={{width: '100%'}}
+            />
+            <div style={{display: 'flex', justifyContent: 'space-between', fontSize: '0.85rem', color: '#999', marginTop: '5px'}}>
+              <span>30s</span>
+              <span>60s</span>
+              <span>90s</span>
             </div>
-          ) : compressing ? (
-            <div>
-              <div className="spinner" style={{margin: '20px auto'}}></div>
-              <p style={{color: '#667eea', fontWeight: '600'}}>Compressione...</p>
-            </div>
-          ) : preview ? (
-            <div>
-              {videoFile ? (
-                <video src={preview} controls style={{maxHeight: '250px', margin: '0 auto', borderRadius: '10px'}} />
+          </div>
+
+          <div
+            onDrop={handleDrop}
+            onDragOver={(e) => e.preventDefault()}
+            style={{
+              border: '4px dashed #ccc',
+              borderRadius: '15px',
+              padding: '50px',
+              textAlign: 'center',
+              cursor: 'pointer',
+              transition: 'all 0.3s',
+              background: '#f8f9ff'
+            }}
+          >
+            <input
+              type="file"
+              accept="image/*,video/*"
+              multiple
+              onChange={handleFileChange}
+              style={{display: 'none'}}
+              id="fileInput"
+              disabled={processing}
+            />
+            <label htmlFor="fileInput" style={{cursor: processing ? 'wait' : 'pointer'}}>
+              {processing ? (
+                <div>
+                  <div className="spinner" style={{margin: '20px auto'}}></div>
+                  <p style={{color: '#667eea', fontWeight: '600'}}>Elaborazione files...</p>
+                </div>
               ) : (
-                <img src={preview} alt="Preview" style={{maxHeight: '250px', margin: '0 auto', borderRadius: '10px'}} />
+                <div>
+                  <p style={{fontSize: '1.5rem', marginBottom: '10px'}}>Trascina qui i files</p>
+                  <p style={{color: '#999'}}>oppure clicca per selezionare</p>
+                  <p style={{fontSize: '0.85rem', color: '#bbb', marginTop: '10px'}}>
+                    Max 10 files - Immagini: JPG, PNG<br/>
+                    Video: MP4 (split automatico se &gt; {chunkDuration}s)
+                  </p>
+                </div>
               )}
-              <p style={{marginTop: '15px', fontSize: '0.9rem', color: '#666'}}>
-                {videoFile ? videoFile.name : file?.name}
-                {file && ` (Frame estratto: ${(file.size / 1024 / 1024).toFixed(2)} MB)`}
-              </p>
-            </div>
-          ) : (
-            <div>
-              <p style={{fontSize: '1.5rem', marginBottom: '10px'}}>Trascina qui il file</p>
-              <p style={{color: '#999'}}>oppure clicca per selezionare</p>
-              <p style={{fontSize: '0.85rem', color: '#bbb', marginTop: '10px'}}>
-                Immagini: JPG, PNG<br/>
-                Video: MP4 (estrazione automatica frame)
-              </p>
-            </div>
-          )}
-        </label>
-      </div>
+            </label>
+          </div>
+        </>
+      )}
 
       {error && (
         <div style={{
@@ -266,105 +385,78 @@ function MediaUpload() {
         </div>
       )}
 
-      {file && !results && !compressing && !extractingFrame && (
-        <button
-          onClick={handleUploadAndAnalyze}
-          disabled={uploading || analyzing}
-          className="btn"
-          style={{
-            marginTop: '25px',
-            width: '100%',
-            opacity: (uploading || analyzing) ? 0.6 : 1
-          }}
-        >
-          {uploading ? 'Caricamento...' : analyzing ? 'Analisi AI in corso...' : 'Analizza e Genera Post'}
-        </button>
+      {uploadProgress.length > 0 && (
+        <div style={{marginTop: '25px'}}>
+          <h3 style={{fontSize: '1.2rem', marginBottom: '15px', color: '#333'}}>
+            Progress Upload
+          </h3>
+          {uploadProgress.map((progress, i) => (
+            <div key={i} style={{
+              padding: '12px',
+              background: '#f8f9ff',
+              borderRadius: '10px',
+              marginBottom: '10px',
+              border: '2px solid #e0e0e0'
+            }}>
+              <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center'}}>
+                <span style={{fontSize: '0.9rem', color: '#333', fontWeight: '500'}}>
+                  {progress.name}
+                </span>
+                <span style={{
+                  fontSize: '0.85rem',
+                  padding: '4px 10px',
+                  borderRadius: '6px',
+                  fontWeight: '600',
+                  background: 
+                    progress.status === 'done' ? '#4caf50' :
+                    progress.status === 'error' ? '#f44336' :
+                    progress.status === 'analyzing' ? '#2196f3' :
+                    progress.status === 'uploading' ? '#ff9800' :
+                    progress.status === 'processing' ? '#9c27b0' :
+                    '#ccc',
+                  color: 'white'
+                }}>
+                  {progress.status === 'done' ? 'Completato' :
+                   progress.status === 'error' ? 'Errore' :
+                   progress.status === 'analyzing' ? 'Analisi AI' :
+                   progress.status === 'uploading' ? 'Upload' :
+                   progress.status === 'processing' ? 'Elaborazione' :
+                   'In attesa'}
+                </span>
+              </div>
+              {progress.error && (
+                <div style={{fontSize: '0.8rem', color: '#c62828', marginTop: '5px'}}>
+                  {progress.error}
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
       )}
 
-      {results && (
-        <div style={{marginTop: '30px'}}>
+      {files.length > 0 && reels.length === 0 && !processing && (
+        <div style={{marginTop: '25px'}}>
           <div style={{
-            background: '#e3f2fd',
             padding: '15px',
+            background: '#e3f2fd',
             borderRadius: '10px',
             marginBottom: '20px',
             border: '2px solid #2196f3'
           }}>
-            <strong>Descrizione:</strong> {results.description}
+            <strong>Files pronti:</strong> {files.length} {files.length > 1 ? 'reel' : 'media'}
+            {seriesTitle && <div style={{marginTop: '5px'}}>Serie: <strong>{seriesTitle}</strong></div>}
           </div>
 
-          {results.variants?.map((variant, i) => (
-            <div key={i} style={{
-              background: 'white',
-              padding: '25px',
-              borderRadius: '15px',
-              marginBottom: '20px',
-              border: '2px solid #e0e0e0',
-              boxShadow: '0 5px 15px rgba(0,0,0,0.1)'
-            }}>
-              <div style={{
-                display: 'flex',
-                justifyContent: 'space-between',
-                alignItems: 'center',
-                marginBottom: '15px'
-              }}>
-                <h3 style={{
-                  fontSize: '1.2rem',
-                  fontWeight: '700',
-                  textTransform: 'capitalize',
-                  color: '#333'
-                }}>
-                  {variant.type}
-                </h3>
-                <button
-                  onClick={() => copyToClipboard(`${variant.caption}\n\n${variant.hashtags.join(' ')}\n\n${variant.cta}`)}
-                  style={{
-                    background: '#4caf50',
-                    color: 'white',
-                    border: 'none',
-                    padding: '10px 20px',
-                    borderRadius: '8px',
-                    cursor: 'pointer',
-                    fontWeight: '600',
-                    fontSize: '0.9rem'
-                  }}
-                >
-                  Copia
-                </button>
-              </div>
-              <p style={{
-                marginBottom: '15px',
-                whiteSpace: 'pre-wrap',
-                lineHeight: '1.6',
-                color: '#333'
-              }}>
-                {variant.caption}
-              </p>
-              <p style={{
-                fontSize: '0.9rem',
-                color: '#2196f3',
-                marginBottom: '10px'
-              }}>
-                {variant.hashtags.join(' ')}
-              </p>
-              <p style={{
-                fontSize: '0.9rem',
-                fontWeight: '700',
-                color: '#9c27b0'
-              }}>
-                {variant.cta}
-              </p>
-            </div>
-          ))}
+          <button
+            onClick={handleUploadAndAnalyze}
+            className="btn"
+            style={{width: '100%', marginBottom: '10px'}}
+          >
+            Analizza e Genera Reel
+          </button>
 
           <button
-            onClick={() => {
-              setFile(null)
-              setVideoFile(null)
-              setPreview(null)
-              setResults(null)
-              setError(null)
-            }}
+            onClick={resetUpload}
             style={{
               width: '100%',
               background: '#f5f5f5',
@@ -377,7 +469,156 @@ function MediaUpload() {
               fontSize: '1rem'
             }}
           >
-            Carica Altro Media
+            Reset
+          </button>
+        </div>
+      )}
+
+      {reels.length > 0 && (
+        <div style={{marginTop: '30px'}}>
+          <h3 style={{fontSize: '1.5rem', marginBottom: '20px', color: '#333'}}>
+            Reel Generati ({reels.length})
+          </h3>
+
+          <div style={{
+            maxHeight: '600px',
+            overflowY: 'auto',
+            paddingRight: '10px'
+          }}>
+            {reels.map((reel, reelIdx) => (
+              <div key={reelIdx} style={{
+                marginBottom: '30px',
+                padding: '25px',
+                background: 'white',
+                borderRadius: '15px',
+                border: '3px solid #667eea',
+                boxShadow: '0 5px 20px rgba(0,0,0,0.1)'
+              }}>
+                <div style={{
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'center',
+                  marginBottom: '15px',
+                  paddingBottom: '15px',
+                  borderBottom: '2px solid #e0e0e0'
+                }}>
+                  <div>
+                    <h4 style={{fontSize: '1.3rem', fontWeight: '700', color: '#333', marginBottom: '5px'}}>
+                      {reel.reelTitle}
+                    </h4>
+                    {reel.chunkInfo && (
+                      <span style={{
+                        fontSize: '0.85rem',
+                        color: '#666',
+                        background: '#f0f0f0',
+                        padding: '4px 10px',
+                        borderRadius: '6px'
+                      }}>
+                        {reel.chunkInfo}
+                      </span>
+                    )}
+                  </div>
+                  <div style={{
+                    fontSize: '0.9rem',
+                    color: '#999',
+                    textAlign: 'right'
+                  }}>
+                    {reel.fileName}
+                  </div>
+                </div>
+
+                <div style={{
+                  background: '#e3f2fd',
+                  padding: '15px',
+                  borderRadius: '10px',
+                  marginBottom: '20px',
+                  border: '2px solid #2196f3'
+                }}>
+                  <strong>Descrizione:</strong> {reel.description}
+                </div>
+
+                {reel.variants?.map((variant, varIdx) => (
+                  <div key={varIdx} style={{
+                    background: '#fafafa',
+                    padding: '20px',
+                    borderRadius: '12px',
+                    marginBottom: '15px',
+                    border: '2px solid #e0e0e0'
+                  }}>
+                    <div style={{
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      alignItems: 'center',
+                      marginBottom: '15px'
+                    }}>
+                      <h5 style={{
+                        fontSize: '1.1rem',
+                        fontWeight: '700',
+                        textTransform: 'capitalize',
+                        color: '#333'
+                      }}>
+                        {variant.type}
+                      </h5>
+                      <button
+                        onClick={() => copyToClipboard(`${reel.reelTitle}\n\n${variant.caption}\n\n${variant.hashtags.join(' ')}\n\n${variant.cta}`)}
+                        style={{
+                          background: '#4caf50',
+                          color: 'white',
+                          border: 'none',
+                          padding: '10px 20px',
+                          borderRadius: '8px',
+                          cursor: 'pointer',
+                          fontWeight: '600',
+                          fontSize: '0.9rem'
+                        }}
+                      >
+                        Copia
+                      </button>
+                    </div>
+                    <p style={{
+                      marginBottom: '15px',
+                      whiteSpace: 'pre-wrap',
+                      lineHeight: '1.6',
+                      color: '#333'
+                    }}>
+                      {variant.caption}
+                    </p>
+                    <p style={{
+                      fontSize: '0.9rem',
+                      color: '#2196f3',
+                      marginBottom: '10px'
+                    }}>
+                      {variant.hashtags.join(' ')}
+                    </p>
+                    <p style={{
+                      fontSize: '0.9rem',
+                      fontWeight: '700',
+                      color: '#9c27b0'
+                    }}>
+                      {variant.cta}
+                    </p>
+                  </div>
+                ))}
+              </div>
+            ))}
+          </div>
+
+          <button
+            onClick={resetUpload}
+            style={{
+              width: '100%',
+              background: '#f5f5f5',
+              color: '#666',
+              border: 'none',
+              padding: '15px',
+              borderRadius: '10px',
+              cursor: 'pointer',
+              fontWeight: '600',
+              fontSize: '1rem',
+              marginTop: '20px'
+            }}
+          >
+            Carica Altri Media
           </button>
         </div>
       )}
