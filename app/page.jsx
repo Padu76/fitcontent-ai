@@ -3,6 +3,98 @@
 import { useState } from 'react'
 import imageCompression from 'browser-image-compression'
 
+// Componente Preview Instagram Modal
+function InstagramPreview({ isOpen, onClose, variant, preview, fileName }) {
+  if (!isOpen) return null
+
+  return (
+    <div style={{
+      position: 'fixed',
+      top: 0,
+      left: 0,
+      right: 0,
+      bottom: 0,
+      background: 'rgba(0,0,0,0.8)',
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      zIndex: 1000,
+      padding: '20px'
+    }} onClick={onClose}>
+      <div style={{
+        background: 'white',
+        borderRadius: '15px',
+        maxWidth: '500px',
+        width: '100%',
+        maxHeight: '90vh',
+        overflow: 'auto',
+        boxShadow: '0 10px 40px rgba(0,0,0,0.3)'
+      }} onClick={(e) => e.stopPropagation()}>
+        {/* Header Instagram */}
+        <div style={{
+          padding: '15px',
+          borderBottom: '1px solid #dbdbdb',
+          display: 'flex',
+          alignItems: 'center',
+          gap: '10px'
+        }}>
+          <div style={{
+            width: '32px',
+            height: '32px',
+            borderRadius: '50%',
+            background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)'
+          }}></div>
+          <strong style={{fontSize: '0.9rem'}}>your_fitness_account</strong>
+        </div>
+
+        {/* Immagine/Video */}
+        {preview && (
+          preview.includes('video') || fileName?.includes('.mp4') ? (
+            <video src={preview} controls style={{width: '100%', maxHeight: '500px', objectFit: 'cover'}} />
+          ) : (
+            <img src={preview} alt="Preview" style={{width: '100%', maxHeight: '500px', objectFit: 'cover'}} />
+          )
+        )}
+
+        {/* Caption */}
+        <div style={{padding: '15px'}}>
+          <div style={{marginBottom: '10px'}}>
+            <strong style={{fontSize: '0.9rem', marginRight: '8px'}}>your_fitness_account</strong>
+            <span style={{fontSize: '0.9rem', color: '#262626', whiteSpace: 'pre-wrap', lineHeight: '1.5'}}>
+              {variant?.caption}
+            </span>
+          </div>
+          <div style={{fontSize: '0.85rem', color: '#00376b', marginBottom: '10px'}}>
+            {variant?.hashtags?.join(' ')}
+          </div>
+          <div style={{fontSize: '0.85rem', color: '#8e8e8e', marginBottom: '15px'}}>
+            2 ore fa
+          </div>
+        </div>
+
+        {/* Bottone chiudi */}
+        <div style={{padding: '15px', borderTop: '1px solid #dbdbdb'}}>
+          <button
+            onClick={onClose}
+            style={{
+              width: '100%',
+              padding: '12px',
+              background: '#667eea',
+              color: 'white',
+              border: 'none',
+              borderRadius: '8px',
+              fontWeight: '600',
+              cursor: 'pointer'
+            }}
+          >
+            Chiudi Preview
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 // Componente MediaUpload semplificato
 function MediaUpload() {
   const [files, setFiles] = useState([])
@@ -10,8 +102,10 @@ function MediaUpload() {
   const [analyzing, setAnalyzing] = useState(false)
   const [currentAnalyzing, setCurrentAnalyzing] = useState(null)
   const [loadingText, setLoadingText] = useState('Analisi in corso...')
+  const [progress, setProgress] = useState(0)
   const [reels, setReels] = useState([])
   const [error, setError] = useState(null)
+  const [previewModal, setPreviewModal] = useState({ isOpen: false, variant: null, preview: null, fileName: null })
 
   // Testi loading animati
   const loadingTexts = [
@@ -140,6 +234,7 @@ function MediaUpload() {
 
     setError(null)
     setAnalyzing(true)
+    setProgress(0)
     const generatedReels = []
 
     // Animazione testo loading
@@ -152,6 +247,7 @@ function MediaUpload() {
     for (let i = 0; i < files.length; i++) {
       const file = files[i]
       setCurrentAnalyzing(i)
+      setProgress(Math.round((i / files.length) * 100))
 
       try {
         // Upload
@@ -203,6 +299,7 @@ function MediaUpload() {
       }
     }
 
+    setProgress(100)
     clearInterval(textInterval)
     setReels(generatedReels)
     setAnalyzing(false)
@@ -214,12 +311,21 @@ function MediaUpload() {
     alert('Copiato!')
   }
 
+  const openPreview = (variant, preview, fileName) => {
+    setPreviewModal({ isOpen: true, variant, preview, fileName })
+  }
+
+  const closePreview = () => {
+    setPreviewModal({ isOpen: false, variant: null, preview: null, fileName: null })
+  }
+
   const resetAll = () => {
     setFiles([])
     setReels([])
     setError(null)
     setAnalyzing(false)
     setCurrentAnalyzing(null)
+    setProgress(0)
   }
 
   return (
@@ -385,9 +491,36 @@ function MediaUpload() {
           <p style={{color: '#667eea', fontWeight: '600', fontSize: '1.2rem', marginBottom: '10px'}}>
             {loadingText}
           </p>
-          <p style={{color: '#999', fontSize: '0.9rem'}}>
+          <p style={{color: '#999', fontSize: '0.9rem', marginBottom: '20px'}}>
             File {currentAnalyzing + 1} di {files.length}
           </p>
+          
+          {/* Progress Bar */}
+          <div style={{
+            width: '100%',
+            maxWidth: '400px',
+            margin: '0 auto',
+            background: '#e0e0e0',
+            borderRadius: '10px',
+            height: '20px',
+            overflow: 'hidden'
+          }}>
+            <div style={{
+              width: `${progress}%`,
+              height: '100%',
+              background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+              transition: 'width 0.3s ease',
+              borderRadius: '10px',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              color: 'white',
+              fontSize: '0.75rem',
+              fontWeight: '600'
+            }}>
+              {progress}%
+            </div>
+          </div>
         </div>
       )}
 
@@ -483,21 +616,38 @@ function MediaUpload() {
                           }}>
                             {variant.type}
                           </h5>
-                          <button
-                            onClick={() => copyToClipboard(`${variant.caption}\n\n${variant.hashtags.join(' ')}\n\n${variant.cta}`)}
-                            style={{
-                              background: '#4caf50',
-                              color: 'white',
-                              border: 'none',
-                              padding: '10px 20px',
-                              borderRadius: '8px',
-                              cursor: 'pointer',
-                              fontWeight: '600',
-                              fontSize: '0.9rem'
-                            }}
-                          >
-                            Copia
-                          </button>
+                          <div style={{display: 'flex', gap: '10px'}}>
+                            <button
+                              onClick={() => openPreview(variant, reel.preview, reel.fileName)}
+                              style={{
+                                background: '#2196f3',
+                                color: 'white',
+                                border: 'none',
+                                padding: '10px 20px',
+                                borderRadius: '8px',
+                                cursor: 'pointer',
+                                fontWeight: '600',
+                                fontSize: '0.9rem'
+                              }}
+                            >
+                              Preview
+                            </button>
+                            <button
+                              onClick={() => copyToClipboard(`${variant.caption}\n\n${variant.hashtags.join(' ')}\n\n${variant.cta}`)}
+                              style={{
+                                background: '#4caf50',
+                                color: 'white',
+                                border: 'none',
+                                padding: '10px 20px',
+                                borderRadius: '8px',
+                                cursor: 'pointer',
+                                fontWeight: '600',
+                                fontSize: '0.9rem'
+                              }}
+                            >
+                              Copia
+                            </button>
+                          </div>
                         </div>
                         <p style={{
                           marginBottom: '15px',
@@ -548,6 +698,14 @@ function MediaUpload() {
           </button>
         </div>
       )}
+
+      <InstagramPreview 
+        isOpen={previewModal.isOpen}
+        onClose={closePreview}
+        variant={previewModal.variant}
+        preview={previewModal.preview}
+        fileName={previewModal.fileName}
+      />
     </div>
   )
 }
