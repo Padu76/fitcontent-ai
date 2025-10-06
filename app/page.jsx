@@ -336,6 +336,7 @@ function MediaUpload() {
   }
 
   const openPreview = (variant, preview, fileName) => {
+    console.log('Opening preview:', { preview, fileName }) // Debug
     setPreviewModal({ isOpen: true, variant, preview, fileName })
   }
 
@@ -368,7 +369,16 @@ function MediaUpload() {
             disabled={processing}
           />
           <label htmlFor="fileInput">
-            <div style={{
+            <div 
+              onDrop={async (e) => {
+                e.preventDefault()
+                const droppedFiles = Array.from(e.dataTransfer.files).slice(0, 10)
+                if (droppedFiles.length > 0) {
+                  await addFiles(droppedFiles)
+                }
+              }}
+              onDragOver={(e) => e.preventDefault()}
+              style={{
               border: '4px dashed #ccc',
               borderRadius: '15px',
               padding: '50px',
